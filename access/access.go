@@ -35,12 +35,12 @@ type myIPNet struct {
 	*net.IPNet
 }
 
-func (myipnet *myIPNet) UnmarshalTOML(d interface{}) (err error) {
+func (myIPNet *myIPNet) UnmarshalTOML(d interface{}) (err error) {
 	ipstring, ok := d.(string)
 	if !ok {
 		return errors.New("Expected array of strings")
 	}
-	_, myipnet.IPNet, err = net.ParseCIDR(ipstring)
+	_, myIPNet.IPNet, err = net.ParseCIDR(ipstring)
 	return
 }
 
@@ -57,7 +57,7 @@ func New(config Config, logger *log.Logger) (access *Access) {
 	return
 }
 
-func (access *Access) Allowed(ip net.IP) bool {
+func (access *Access) AllowedIP(ip net.IP) bool {
 	for _, ipmask := range access.config.Allow {
 		if ipmask.Contains(ip) {
 			return true
@@ -72,7 +72,7 @@ func (access *Access) AllowedNetAddr(addr net.Addr) bool {
 		return false
 	}
 	if ip := net.ParseIP(host); ip != nil {
-		return access.Allowed(ip)
+		return access.AllowedIP(ip)
 	}
 	return false
 }

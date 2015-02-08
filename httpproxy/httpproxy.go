@@ -71,7 +71,8 @@ func (httpProxy *HTTPProxy) allowedUpstream(str string) bool {
 func (httpProxy *HTTPProxy) doProxy() {
 	listener, err := net.Listen("tcp", httpProxy.config.Listen)
 	if err != nil {
-		httpProxy.logger.Fatalln("listen tcp "+httpProxy.config.Listen+" error:", err)
+		httpProxy.logger.Fatalln("HTTP listen tcp "+
+			httpProxy.config.Listen+" error:", err)
 		return
 	}
 	var handle func(net.Conn)
@@ -83,7 +84,8 @@ func (httpProxy *HTTPProxy) doProxy() {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			httpProxy.logger.Println("accept "+httpProxy.config.Listen+" error:", err)
+			httpProxy.logger.Println("HTTP accept "+
+				httpProxy.config.Listen+" error:", err)
 		}
 		if httpProxy.access.AllowedNetAddr(conn.RemoteAddr()) {
 			go handle(conn)
@@ -251,7 +253,6 @@ func (httpProxy *HTTPProxy) handleHTTPSConnection(downstream net.Conn) {
 		current += 2
 
 		if extensionType == 0 {
-
 			// Skip over number of names as we're assuming there's just one
 			current += 2
 
@@ -292,7 +293,6 @@ func (httpProxy *HTTPProxy) handleHTTPSConnection(downstream net.Conn) {
 		downstream.Close()
 		return
 	}
-
 	httpProxy.logger.Printf("HTTPS request from %s: connected to backend \"%s\"\n",
 		downstream.RemoteAddr(), hostname)
 

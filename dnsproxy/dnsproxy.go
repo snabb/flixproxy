@@ -60,31 +60,31 @@ type Config struct {
 	SpoofTTL   uint32
 }
 
-func New(config Config, access *access.Access, logger *log.Logger) (dnsproxy *DNSProxy) {
-	dnsproxy = &DNSProxy{
+func New(config Config, access *access.Access, logger *log.Logger) (dnsProxy *DNSProxy) {
+	dnsProxy = &DNSProxy{
 		config: config,
 		access: access,
 		logger: logger,
 	}
 	go func() {
-		if err := dns.ListenAndServe(config.Listen, "udp", dnsproxy); err != nil {
-			logger.Fatalln("listen udp "+config.Listen+" error:", err)
+		if err := dns.ListenAndServe(config.Listen, "udp", dnsProxy); err != nil {
+			logger.Fatalln("DNS listen udp "+config.Listen+" error:", err)
 		}
 	}()
 	go func() {
-		if err := dns.ListenAndServe(config.Listen, "tcp", dnsproxy); err != nil {
-			logger.Fatalln("listen tcp "+config.Listen+" error:", err)
+		if err := dns.ListenAndServe(config.Listen, "tcp", dnsProxy); err != nil {
+			logger.Fatalln("DNS listen tcp "+config.Listen+" error:", err)
 		}
 	}()
 
 	return
 }
 
-func (dnsproxy *DNSProxy) Stop() {
+func (dnsProxy *DNSProxy) Stop() {
 	// something
 }
 
-func (this *DNSProxy) getAnswer(req *dns.Msg) *dns.Msg {
+func (dnsProxy *DNSProxy) getAnswer(req *dns.Msg) *dns.Msg {
 	q := req.Question[0]
 	if q.Qclass != dns.ClassINET {
 		return nil
@@ -93,7 +93,7 @@ func (this *DNSProxy) getAnswer(req *dns.Msg) *dns.Msg {
 		return nil
 	}
 	found := false
-	for _, name := range this.config.SpoofNames {
+	for _, name := range dnsProxy.config.SpoofNames {
 		if glob.Glob(name, q.Name) {
 			found = true
 			break
@@ -116,9 +116,9 @@ func (this *DNSProxy) getAnswer(req *dns.Msg) *dns.Msg {
 			Name:   q.Name,
 			Rrtype: dns.TypeA,
 			Class:  dns.ClassINET,
-			Ttl:    this.config.SpoofTTL,
+			Ttl:    dnsProxy.config.SpoofTTL,
 		},
-		A: this.config.SpoofIP.IP,
+		A: dnsProxy.config.SpoofIP.IP,
 	}
 
 	m.Answer = []dns.RR{rr.Copy()}
@@ -126,9 +126,9 @@ func (this *DNSProxy) getAnswer(req *dns.Msg) *dns.Msg {
 	return m
 }
 
-func (this *DNSProxy) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
-	if !this.access.AllowedNetAddr(w.RemoteAddr()) {
-		this.logger.Printf("DNS refusing query for \"%s\" from %s\n",
+func (dnsProxy *DNSProxy) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
+	if !dnsProxy.access.AllowedNetAddr(w.RemoteAddr()) {
+		dnsProxy.logger.Printf("DNS refusing query for \"%s\" from %s\n",
 			req.Question[0].Name, w.RemoteAddr())
 		m := new(dns.Msg)
 		m.SetRcode(req, dns.RcodeRefused)
@@ -137,29 +137,29 @@ func (this *DNSProxy) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	}
 	// support only queries with exactly one question
 	if len(req.Question) != 1 {
-		this.logger.Printf("DNS wrong number of questions from %s: %d\n",
+		dnsProxy.logger.Printf("DNS wrong number of questions from %s: %d\n",
 			w.RemoteAddr(), len(req.Question))
 		m := new(dns.Msg)
 		m.SetRcode(req, dns.RcodeFormatError)
 		w.Write(m)
 	}
-	if m := this.getAnswer(req); m != nil {
-		this.logger.Printf("DNS query from %s \"%s\" local answer: %s\n",
+	if m := dnsProxy.getAnswer(req); m != nil {
+		dnsProxy.logger.Printf("DNS query from %s \"%s\" local answer: %s\n",
 			w.RemoteAddr(), req.Question[0].Name, m.Answer)
 		w.Write(m)
 		return
 	}
 	c := new(dns.Client)
-	response, err := c.Exchange(req, this.config.Forwarder)
+	response, err := c.Exchange(req, dnsProxy.config.Forwarder)
 	if err != nil {
-		this.logger.Printf("DNS query from %s \"%s\" remote error: %s\n",
+		dnsProxy.logger.Printf("DNS query from %s \"%s\" remote error: %s\n",
 			w.RemoteAddr(), req.Question[0].Name, err)
 		m := new(dns.Msg)
 		m.SetRcode(req, dns.RcodeServerFailure)
 		w.Write(m)
 		return
 	}
-	this.logger.Printf("DNS query from %s \"%s\" remote answer: %s\n",
+	dnsProxy.logger.Printf("DNS query from %s \"%s\" remote answer: %s\n",
 		w.RemoteAddr(), req.Question[0].Name, response.Answer)
 	w.Write(response)
 }
