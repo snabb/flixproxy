@@ -139,7 +139,7 @@ func (httpProxy *HTTPProxy) handleHTTPConnection(downstream net.Conn) {
 		downstream.Close()
 		return
 	}
-	httpProxy.logger.Printf("HTTP request from %s: connected to backend \"%s\"\n",
+	httpProxy.logger.Printf("HTTP request from %s connected to backend \"%s\"\n",
 		downstream.RemoteAddr(), hostname)
 
 	for element := readLines.Front(); element != nil; element = element.Next() {
@@ -280,7 +280,7 @@ func (httpProxy *HTTPProxy) handleHTTPSConnection(downstream net.Conn) {
 		hostname = hostname + ":443"
 	}
 	if httpProxy.allowedUpstream(hostname) == false {
-		httpProxy.logger.Printf("HTTP request from %s: backend \"%s\" not allowed\n",
+		httpProxy.logger.Printf("HTTPS request from %s: backend \"%s\" not allowed\n",
 			downstream.RemoteAddr(), hostname)
 		downstream.Close()
 		return

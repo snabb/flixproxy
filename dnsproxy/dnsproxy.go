@@ -128,7 +128,7 @@ func (this *DNSProxy) getAnswer(req *dns.Msg) *dns.Msg {
 
 func (this *DNSProxy) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	if !this.access.AllowedNetAddr(w.RemoteAddr()) {
-		this.logger.Printf("refusing query for \"%s\" from %s\n",
+		this.logger.Printf("DNS refusing query for \"%s\" from %s\n",
 			req.Question[0].Name, w.RemoteAddr())
 		m := new(dns.Msg)
 		m.SetRcode(req, dns.RcodeRefused)
@@ -137,14 +137,14 @@ func (this *DNSProxy) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	}
 	// support only queries with exactly one question
 	if len(req.Question) != 1 {
-		this.logger.Printf("wrong number of questions from %s: %d\n",
+		this.logger.Printf("DNS wrong number of questions from %s: %d\n",
 			w.RemoteAddr(), len(req.Question))
 		m := new(dns.Msg)
 		m.SetRcode(req, dns.RcodeFormatError)
 		w.Write(m)
 	}
 	if m := this.getAnswer(req); m != nil {
-		this.logger.Printf("query from %s \"%s\" local answer: %s\n",
+		this.logger.Printf("DNS query from %s \"%s\" local answer: %s\n",
 			w.RemoteAddr(), req.Question[0].Name, m.Answer)
 		w.Write(m)
 		return
@@ -152,14 +152,14 @@ func (this *DNSProxy) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	c := new(dns.Client)
 	response, err := c.Exchange(req, this.config.Forwarder)
 	if err != nil {
-		this.logger.Printf("query from %s \"%s\" remote error: %s\n",
+		this.logger.Printf("DNS query from %s \"%s\" remote error: %s\n",
 			w.RemoteAddr(), req.Question[0].Name, err)
 		m := new(dns.Msg)
 		m.SetRcode(req, dns.RcodeServerFailure)
 		w.Write(m)
 		return
 	}
-	this.logger.Printf("query from %s \"%s\" remote answer: %s\n",
+	this.logger.Printf("DNS query from %s \"%s\" remote answer: %s\n",
 		w.RemoteAddr(), req.Question[0].Name, response.Answer)
 	w.Write(response)
 }
