@@ -42,7 +42,7 @@ Thanks!
 License
 -------
 
-Copyright © 2015 Janne Snabb
+Copyright © 2015 Janne Snabb <snabb AT epipe.com>
 
 Flixproxy is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
