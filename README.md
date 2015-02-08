@@ -22,7 +22,7 @@ Indication (SNI) extension in their SSL/TLS client implementation.
 Acknowledgements
 ----------------
 
-Some code and ideas may have been stolen from:
+Some ideas and code may have been stolen from:
 
 - Borislav Nikolov, https://github.com/jackdoe/cacher
 
