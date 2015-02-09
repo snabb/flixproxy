@@ -111,7 +111,7 @@ func (dnsProxy *DNSProxy) getAnswer(req *dns.Msg) *dns.Msg {
 	m.SetReply(req)
 	m.RecursionAvailable = true
 
-	rr := dns.RR_A{
+	rr := &dns.A{
 		Hdr: dns.RR_Header{
 			Name:   q.Name,
 			Rrtype: dns.TypeA,
@@ -120,8 +120,7 @@ func (dnsProxy *DNSProxy) getAnswer(req *dns.Msg) *dns.Msg {
 		},
 		A: dnsProxy.config.SpoofIP.IP,
 	}
-
-	m.Answer = []dns.RR{rr.Copy()}
+	m.Answer = []dns.RR{dns.RR(rr)}
 
 	return m
 }
@@ -132,7 +131,7 @@ func (dnsProxy *DNSProxy) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 			req.Question[0].Name, w.RemoteAddr())
 		m := new(dns.Msg)
 		m.SetRcode(req, dns.RcodeRefused)
-		w.Write(m)
+		w.WriteMsg(m)
 		return
 	}
 	// support only queries with exactly one question
@@ -141,27 +140,27 @@ func (dnsProxy *DNSProxy) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 			w.RemoteAddr(), len(req.Question))
 		m := new(dns.Msg)
 		m.SetRcode(req, dns.RcodeFormatError)
-		w.Write(m)
+		w.WriteMsg(m)
 	}
 	if m := dnsProxy.getAnswer(req); m != nil {
 		dnsProxy.logger.Printf("DNS query from %s \"%s\" local answer: %s\n",
 			w.RemoteAddr(), req.Question[0].Name, m.Answer)
-		w.Write(m)
+		w.WriteMsg(m)
 		return
 	}
 	c := new(dns.Client)
-	response, err := c.Exchange(req, dnsProxy.config.Forwarder)
+	response, _, err := c.Exchange(req, dnsProxy.config.Forwarder)
 	if err != nil {
 		dnsProxy.logger.Printf("DNS query from %s \"%s\" remote error: %s\n",
 			w.RemoteAddr(), req.Question[0].Name, err)
 		m := new(dns.Msg)
 		m.SetRcode(req, dns.RcodeServerFailure)
-		w.Write(m)
+		w.WriteMsg(m)
 		return
 	}
 	dnsProxy.logger.Printf("DNS query from %s \"%s\" remote answer: %s\n",
 		w.RemoteAddr(), req.Question[0].Name, response.Answer)
-	w.Write(response)
+	w.WriteMsg(response)
 }
 
 // eof
