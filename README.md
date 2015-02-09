@@ -18,6 +18,8 @@ in your Smart TV, computer, router, DHCP or somewhere else.
 This software does not work with devices which do not support Server Name
 Indication (SNI) extension in their SSL/TLS client implementation.
 
+The Git repository is located at: https://github.com/snabb/flixproxy
+
 
 Acknowledgements
 ----------------
