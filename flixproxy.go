@@ -19,13 +19,9 @@
 // along with Flixproxy. If not, see <http://www.gnu.org/licenses/>.
 //
 
-/*
-  Flixproxy - DNS, HTTP and TLS proxy
-
-  Please see the web site for more information:
-
-  https://github.com/snabb/flixproxy
-*/
+// Flixproxy - DNS, HTTP and TLS proxy
+//
+// Please see https://github.com/snabb/flixproxy for more information.
 package main
 
 import (
