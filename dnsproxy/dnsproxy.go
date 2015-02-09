@@ -68,12 +68,12 @@ func New(config Config, access *access.Access, logger *log.Logger) (dnsProxy *DN
 	}
 	go func() {
 		if err := dns.ListenAndServe(config.Listen, "udp", dnsProxy); err != nil {
-			logger.Fatalln("DNS listen udp "+config.Listen+" error:", err)
+			logger.Fatalln("DNS error:", err)
 		}
 	}()
 	go func() {
 		if err := dns.ListenAndServe(config.Listen, "tcp", dnsProxy); err != nil {
-			logger.Fatalln("DNS listen tcp "+config.Listen+" error:", err)
+			logger.Fatalln("DNS error:", err)
 		}
 	}()
 
