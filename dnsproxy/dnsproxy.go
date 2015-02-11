@@ -28,6 +28,8 @@ import (
 	"github.com/snabb/flixproxy/access"
 	"log"
 	"net"
+	"strconv"
+	"strings"
 )
 
 type DNSProxy struct {
@@ -45,8 +47,7 @@ func (myip *myIP) UnmarshalTOML(d interface{}) error {
 	if !ok {
 		return errors.New("Expected array of strings")
 	}
-	myip.IP = net.ParseIP(ipstring)
-	if myip.IP == nil {
+	if myip.IP = net.ParseIP(ipstring); myip.IP == nil {
 		return errors.New("Invalid IP address")
 	}
 	return nil
@@ -55,9 +56,57 @@ func (myip *myIP) UnmarshalTOML(d interface{}) error {
 type Config struct {
 	Listen     string
 	Forwarder  string
-	SpoofNames []string
-	SpoofIP    myIP
-	SpoofTTL   uint32
+	Spoof      rrSlice
+}
+
+type rrSlice struct {
+	rrs     map[string]dns.RR
+	wildRrs map[string]dns.RR
+}
+
+func makeKey(rrclass uint16, rrtype uint16, name string) string {
+	c, ok := dns.ClassToString[rrclass]
+	if !ok {
+		c = strconv.Itoa(int(rrclass))
+	}
+	t, ok := dns.TypeToString[rrtype]
+	if !ok {
+		t = strconv.Itoa(int(rrtype))
+	}
+	return c + "\000" + t + "\000" + strings.ToLower(name)
+}
+
+func (spoof *rrSlice) UnmarshalTOML(d interface{}) (err error) {
+	spoofString, ok := d.(string)
+	if !ok {
+		return errors.New("Expected string")
+	}
+	spoof.rrs = make(map[string]dns.RR)
+	spoof.wildRrs = make(map[string]dns.RR)
+
+	for _, line := range strings.Split(spoofString, "\n") {
+		line = strings.TrimSpace(line)
+
+		if len(line) == 0 {
+			continue
+		}
+		if line[0] == ';' || line[0] == '#' {
+			continue
+		}
+
+		var rr dns.RR
+		if rr, err = dns.NewRR(line); err != nil {
+			return
+		}
+		key := makeKey(rr.Header().Class, rr.Header().Rrtype, strings.Fields(line)[0])
+
+		if strings.Contains(key, "*") {
+			spoof.wildRrs[key] = rr
+		} else {
+			spoof.rrs[key] = rr
+		}
+	}
+	return
 }
 
 func New(config Config, access *access.Access, logger *log.Logger) (dnsProxy *DNSProxy) {
@@ -84,45 +133,60 @@ func (dnsProxy *DNSProxy) Stop() {
 	// something
 }
 
-func (dnsProxy *DNSProxy) getAnswer(req *dns.Msg) *dns.Msg {
-	q := req.Question[0]
-	if q.Qclass != dns.ClassINET {
-		return nil
+func (dnsProxy *DNSProxy) getQuestionAnswer(q dns.Question) *dns.RR {
+	qKey := makeKey(q.Qclass, q.Qtype, q.Name)
+
+	if rr, ok := dnsProxy.config.Spoof.rrs[qKey]; ok {
+		rr.Header().Name = q.Name
+		return &rr
 	}
-	if q.Qtype != dns.TypeA && q.Qtype != dns.TypeAAAA {
-		return nil
-	}
-	found := false
-	for _, name := range dnsProxy.config.SpoofNames {
-		if glob.Glob(name, q.Name) {
-			found = true
-			break
+	for key, rr := range dnsProxy.config.Spoof.wildRrs {
+		if glob.Glob(key, qKey) {
+			rr.Header().Name = q.Name
+			return &rr
 		}
 	}
-	if !found {
-		return nil
+	if qKey == "CH\000TXT\000version.bind." ||
+		qKey == "CH\000TXT\000version.server." {
+
+		rr := dns.RR(&dns.TXT{
+			Hdr: dns.RR_Header{
+				Name:   q.Name,
+				Rrtype: dns.TypeTXT,
+				Class:  dns.ClassCHAOS,
+				Ttl:    3600,
+			},
+			Txt: []string{"Flixproxy"},
+		})
+		return &rr
 	}
-	m := new(dns.Msg)
-	if q.Qtype == dns.TypeAAAA {
-		// IPv6 is not supported at this time
-		m.SetRcode(req, dns.RcodeNameError)
+	return nil
+}
+
+func (dnsProxy *DNSProxy) getMessageReply(req *dns.Msg) *dns.Msg {
+	q := req.Question[0]
+
+	if answer := dnsProxy.getQuestionAnswer(q); answer != nil {
+		m := new(dns.Msg)
+		m.SetReply(req)
+		m.RecursionAvailable = true
+		m.Answer = []dns.RR{*answer}
 		return m
 	}
-	m.SetReply(req)
-	m.RecursionAvailable = true
 
-	rr := &dns.A{
-		Hdr: dns.RR_Header{
-			Name:   q.Name,
-			Rrtype: dns.TypeA,
-			Class:  dns.ClassINET,
-			Ttl:    dnsProxy.config.SpoofTTL,
-		},
-		A: dnsProxy.config.SpoofIP.IP,
+	if q.Qtype == dns.TypeAAAA {
+		// check if corresponding spoofed A record exists
+		q2 := q
+		q2.Qtype = dns.TypeA
+		if dnsProxy.getQuestionAnswer(q2) != nil {
+			// return NXDOMAIN
+			// client should retry looking up for TypeA
+			m := new(dns.Msg)
+			m.SetRcode(req, dns.RcodeNameError)
+			return m
+		}
 	}
-	m.Answer = []dns.RR{dns.RR(rr)}
-
-	return m
+	return nil
 }
 
 func (dnsProxy *DNSProxy) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
@@ -142,7 +206,7 @@ func (dnsProxy *DNSProxy) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 		m.SetRcode(req, dns.RcodeFormatError)
 		w.WriteMsg(m)
 	}
-	if m := dnsProxy.getAnswer(req); m != nil {
+	if m := dnsProxy.getMessageReply(req); m != nil {
 		dnsProxy.logger.Printf("DNS query from %s \"%s\" local answer: %s\n",
 			w.RemoteAddr(), req.Question[0].Name, m.Answer)
 		w.WriteMsg(m)
