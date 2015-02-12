@@ -54,9 +54,9 @@ func (myip *myIP) UnmarshalTOML(d interface{}) error {
 }
 
 type Config struct {
-	Listen     string
-	Forwarder  string
-	Spoof      rrSlice
+	Listen    string
+	Forwarder string
+	Spoof     rrSlice
 }
 
 type rrSlice struct {
