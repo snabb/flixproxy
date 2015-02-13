@@ -24,9 +24,8 @@ package httpproxy
 import (
 	"bufio"
 	"container/list"
-	"github.com/ryanuber/go-glob"
 	"github.com/snabb/flixproxy/access"
-	"io"
+	"github.com/snabb/flixproxy/util"
 	"log"
 	"net"
 	"strings"
@@ -40,7 +39,6 @@ type HTTPProxy struct {
 
 type Config struct {
 	Listen    string
-	TLS       bool
 	Upstreams []string
 }
 
@@ -59,27 +57,12 @@ func (httpProxy *HTTPProxy) Stop() {
 	// something
 }
 
-func (httpProxy *HTTPProxy) allowedUpstream(str string) bool {
-	for _, upstreamGlob := range httpProxy.config.Upstreams {
-		if glob.Glob(upstreamGlob, str) {
-			return true
-		}
-	}
-	return false
-}
-
 func (httpProxy *HTTPProxy) doProxy() {
 	listener, err := net.Listen("tcp", httpProxy.config.Listen)
 	if err != nil {
 		httpProxy.logger.Fatalln("HTTP listen tcp "+
 			httpProxy.config.Listen+" error:", err)
 		return
-	}
-	var handle func(net.Conn)
-	if httpProxy.config.TLS {
-		handle = httpProxy.handleHTTPSConnection
-	} else {
-		handle = httpProxy.handleHTTPConnection
 	}
 	for {
 		conn, err := listener.Accept()
@@ -88,7 +71,7 @@ func (httpProxy *HTTPProxy) doProxy() {
 				httpProxy.config.Listen+" error:", err)
 		}
 		if httpProxy.access.AllowedNetAddr(conn.RemoteAddr()) {
-			go handle(conn)
+			go httpProxy.handleHTTPConnection(conn)
 		} else {
 			go conn.Close()
 		}
@@ -128,7 +111,7 @@ func (httpProxy *HTTPProxy) handleHTTPConnection(downstream net.Conn) {
 	if strings.Index(hostname, ":") == -1 {
 		hostname = hostname + ":80"
 	}
-	if httpProxy.allowedUpstream(hostname) == false {
+	if util.ManyGlob(httpProxy.config.Upstreams, hostname) == false {
 		httpProxy.logger.Printf("HTTP request from %s: backend \"%s\" not allowed\n",
 			downstream.RemoteAddr(), hostname)
 		downstream.Close()
@@ -150,164 +133,8 @@ func (httpProxy *HTTPProxy) handleHTTPConnection(downstream net.Conn) {
 		upstream.Write([]byte("\r\n"))
 	}
 
-	go copyAndClose(upstream, reader)
-	go copyAndClose(downstream, upstream)
-}
-
-func (httpProxy *HTTPProxy) handleHTTPSConnection(downstream net.Conn) {
-	firstByte := make([]byte, 1)
-	_, err := downstream.Read(firstByte)
-	if err != nil {
-		httpProxy.logger.Printf("HTTPS request from %s: error reading first byte: %s\n",
-			downstream.RemoteAddr(), err)
-		downstream.Close()
-		return
-	}
-	if firstByte[0] != 0x16 {
-		httpProxy.logger.Printf("HTTPS request from %s: not TLS\n", downstream.RemoteAddr())
-		downstream.Close()
-		return
-	}
-
-	versionBytes := make([]byte, 2)
-	_, err = downstream.Read(versionBytes)
-	if err != nil {
-		httpProxy.logger.Printf("HTTPS request from %s: error reading version bytes: %s\n",
-			downstream.RemoteAddr(), err)
-		downstream.Close()
-		return
-	}
-	if versionBytes[0] < 3 || (versionBytes[0] == 3 && versionBytes[1] < 1) {
-		httpProxy.logger.Printf("HTTPS request from %s: error: SSL < 3.1 not supported\n",
-			downstream.RemoteAddr())
-		downstream.Close()
-		return
-	}
-
-	restLengthBytes := make([]byte, 2)
-	_, err = downstream.Read(restLengthBytes)
-	if err != nil {
-		httpProxy.logger.Printf("HTTPS request from %s: error reading restLength bytes: %s\n",
-			downstream.RemoteAddr(), err)
-		downstream.Close()
-		return
-	}
-	restLength := (int(restLengthBytes[0]) << 8) + int(restLengthBytes[1])
-
-	rest := make([]byte, restLength)
-	_, err = downstream.Read(rest)
-	if err != nil {
-		httpProxy.logger.Printf("HTTPS request from %s: error reading rest of bytes: %s\n",
-			downstream.RemoteAddr(), err)
-		downstream.Close()
-		return
-	}
-	//	httpProxy.logger.Printf("rest = % x\n", rest)
-
-	current := 0
-
-	handshakeType := rest[0]
-	current += 1
-	if handshakeType != 0x1 {
-		httpProxy.logger.Printf("HTTPS request from %s: error: not ClientHello\n",
-			downstream.RemoteAddr())
-		downstream.Close()
-		return
-	}
-	// Skip over another length
-	current += 3
-	// Skip over protocolversion
-	current += 2
-	// Skip over random number
-	current += 4 + 28
-	// Skip over session ID
-	sessionIDLength := int(rest[current])
-	current += 1
-	current += sessionIDLength
-
-	cipherSuiteLength := (int(rest[current]) << 8) + int(rest[current+1])
-	current += 2
-	current += cipherSuiteLength
-
-	compressionMethodLength := int(rest[current])
-	current += 1
-	current += compressionMethodLength
-
-	if current > restLength {
-		httpProxy.logger.Printf("HTTPS request from %s: error: no extensions\n",
-			downstream.RemoteAddr())
-		downstream.Close()
-		return
-	}
-
-	// Skip over extensionsLength
-	// extensionsLength := (int(rest[current]) << 8) + int(rest[current + 1])
-	current += 2
-
-	hostname := ""
-	for current < restLength && hostname == "" {
-		extensionType := (int(rest[current]) << 8) + int(rest[current+1])
-		current += 2
-
-		extensionDataLength := (int(rest[current]) << 8) + int(rest[current+1])
-		current += 2
-
-		if extensionType == 0 {
-			// Skip over number of names as we're assuming there's just one
-			current += 2
-
-			nameType := rest[current]
-			current += 1
-			if nameType != 0 {
-				httpProxy.logger.Printf("HTTPS request from %s: error: nameType = %d\n",
-					downstream.RemoteAddr(), nameType)
-				downstream.Close()
-				return
-			}
-			nameLen := (int(rest[current]) << 8) + int(rest[current+1])
-			current += 2
-			hostname = string(rest[current : current+nameLen])
-		}
-
-		current += extensionDataLength
-	}
-	if hostname == "" {
-		httpProxy.logger.Printf("HTTPS request from %s: error: no hostname found\n",
-			downstream.RemoteAddr())
-		downstream.Close()
-		return
-	}
-	if strings.Index(hostname, ":") == -1 {
-		hostname = hostname + ":443"
-	}
-	if httpProxy.allowedUpstream(hostname) == false {
-		httpProxy.logger.Printf("HTTPS request from %s: backend \"%s\" not allowed\n",
-			downstream.RemoteAddr(), hostname)
-		downstream.Close()
-		return
-	}
-	upstream, err := net.Dial("tcp", hostname)
-	if err != nil {
-		httpProxy.logger.Printf("HTTPS request from %s: error connecting to backend \"%s\": %s\n",
-			downstream.RemoteAddr(), hostname, err)
-		downstream.Close()
-		return
-	}
-	httpProxy.logger.Printf("HTTPS request from %s: connected to backend \"%s\"\n",
-		downstream.RemoteAddr(), hostname)
-
-	upstream.Write(firstByte)
-	upstream.Write(versionBytes)
-	upstream.Write(restLengthBytes)
-	upstream.Write(rest)
-
-	go copyAndClose(upstream, downstream)
-	go copyAndClose(downstream, upstream)
-}
-
-func copyAndClose(dst io.WriteCloser, src io.Reader) {
-	io.Copy(dst, src)
-	dst.Close()
+	go util.CopyAndClose(upstream, reader)
+	go util.CopyAndClose(downstream, upstream)
 }
 
 // eof

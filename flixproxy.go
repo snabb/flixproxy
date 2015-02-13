@@ -26,20 +26,25 @@ package main
 
 import (
 	"github.com/BurntSushi/toml"
+	"github.com/ogier/pflag"
 	"github.com/snabb/flixproxy/access"
 	"github.com/snabb/flixproxy/dnsproxy"
 	"github.com/snabb/flixproxy/httpproxy"
+	"github.com/snabb/flixproxy/tlsproxy"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 )
 
+// Default configuration file location:
+const CONFIG_FILE = "flixproxy.conf"
+
 type config struct {
 	Access access.Config
 	DNS    dnsproxy.Config
 	HTTP   httpproxy.Config
-	HTTPS  httpproxy.Config
+	TLS    tlsproxy.Config
 }
 
 func parseConfig(configFile string) (config config, err error) {
@@ -48,12 +53,21 @@ func parseConfig(configFile string) (config config, err error) {
 }
 
 func main() {
+	var configFile string
+
+	pflag.StringVarP(&configFile, "conf", "c", CONFIG_FILE, "configuration file")
+        pflag.Parse()
+
+       if pflag.NArg() > 0 {
+                pflag.Usage()
+                os.Exit(2)
+        }
+
 	logger := log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile)
 
-	configFile := "flixproxy.conf"
 	config, err := parseConfig(configFile)
 	if err != nil {
-		logger.Fatalln(configFile+":", err)
+		logger.Fatalln(err)
 	}
 
 	logger.Println("starting listeners")
@@ -68,9 +82,9 @@ func main() {
 	if config.HTTP.Listen != "" {
 		myhttpproxy = httpproxy.New(config.HTTP, access, logger)
 	}
-	var myhttpsproxy *httpproxy.HTTPProxy
-	if config.HTTPS.Listen != "" {
-		myhttpsproxy = httpproxy.New(config.HTTPS, access, logger)
+	var mytlsproxy *tlsproxy.TLSProxy
+	if config.TLS.Listen != "" {
+		mytlsproxy = tlsproxy.New(config.TLS, access, logger)
 	}
 
 	sigCexit := make(chan os.Signal)
@@ -92,8 +106,8 @@ MAINLOOP:
 	if myhttpproxy != nil {
 		myhttpproxy.Stop()
 	}
-	if myhttpsproxy != nil {
-		myhttpsproxy.Stop()
+	if mytlsproxy != nil {
+		mytlsproxy.Stop()
 	}
 	logger.Println("bye")
 }

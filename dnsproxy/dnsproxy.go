@@ -27,7 +27,6 @@ import (
 	"github.com/ryanuber/go-glob"
 	"github.com/snabb/flixproxy/access"
 	"log"
-	"net"
 	"strconv"
 	"strings"
 )
@@ -36,21 +35,6 @@ type DNSProxy struct {
 	config Config
 	access *access.Access
 	logger *log.Logger
-}
-
-type myIP struct {
-	net.IP
-}
-
-func (myip *myIP) UnmarshalTOML(d interface{}) error {
-	ipstring, ok := d.(string)
-	if !ok {
-		return errors.New("Expected array of strings")
-	}
-	if myip.IP = net.ParseIP(ipstring); myip.IP == nil {
-		return errors.New("Invalid IP address")
-	}
-	return nil
 }
 
 type Config struct {
@@ -133,22 +117,6 @@ func (dnsProxy *DNSProxy) Stop() {
 	// something
 }
 
-func (dnsProxy *DNSProxy) getQuestionAnswer(q dns.Question) *dns.RR {
-	qKey := makeKey(q.Qclass, q.Qtype, q.Name)
-
-	if rr, ok := dnsProxy.config.Spoof.rrs[qKey]; ok {
-		rr.Header().Name = q.Name
-		return &rr
-	}
-	for key, rr := range dnsProxy.config.Spoof.wildRrs {
-		if glob.Glob(key, qKey) {
-			rr.Header().Name = q.Name
-			return &rr
-		}
-	}
-	return nil
-}
-
 func makeAnswerMessage(req *dns.Msg, rr *dns.RR) *dns.Msg {
 	m := new(dns.Msg)
 	m.SetReply(req)
@@ -174,6 +142,22 @@ func (dnsProxy *DNSProxy) checkVersionQuestion(req *dns.Msg) *dns.Msg {
 			Txt: []string{"Flixproxy"},
 		})
 		return makeAnswerMessage(req, &rr)
+	}
+	return nil
+}
+
+func (dnsProxy *DNSProxy) getQuestionAnswer(q dns.Question) *dns.RR {
+	qKey := makeKey(q.Qclass, q.Qtype, q.Name)
+
+	if rr, ok := dnsProxy.config.Spoof.rrs[qKey]; ok {
+		rr.Header().Name = q.Name
+		return &rr
+	}
+	for key, rr := range dnsProxy.config.Spoof.wildRrs {
+		if glob.Glob(key, qKey) {
+			rr.Header().Name = q.Name
+			return &rr
+		}
 	}
 	return nil
 }
