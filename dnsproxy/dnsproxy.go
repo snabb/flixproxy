@@ -146,6 +146,21 @@ func (dnsProxy *DNSProxy) getQuestionAnswer(q dns.Question) *dns.RR {
 			return &rr
 		}
 	}
+	return nil
+}
+
+func makeAnswerMessage(req *dns.Msg, rr *dns.RR) *dns.Msg {
+	m := new(dns.Msg)
+	m.SetReply(req)
+	m.RecursionAvailable = true
+	m.Answer = []dns.RR{*rr}
+	return m
+}
+
+func (dnsProxy *DNSProxy) checkVersionQuestion(req *dns.Msg) *dns.Msg {
+	q := req.Question[0]
+	qKey := makeKey(q.Qclass, q.Qtype, q.Name)
+
 	if qKey == "CH\000TXT\000version.bind." ||
 		qKey == "CH\000TXT\000version.server." {
 
@@ -158,7 +173,7 @@ func (dnsProxy *DNSProxy) getQuestionAnswer(q dns.Question) *dns.RR {
 			},
 			Txt: []string{"Flixproxy"},
 		})
-		return &rr
+		return makeAnswerMessage(req, &rr)
 	}
 	return nil
 }
@@ -167,11 +182,7 @@ func (dnsProxy *DNSProxy) getMessageReply(req *dns.Msg) *dns.Msg {
 	q := req.Question[0]
 
 	if answer := dnsProxy.getQuestionAnswer(q); answer != nil {
-		m := new(dns.Msg)
-		m.SetReply(req)
-		m.RecursionAvailable = true
-		m.Answer = []dns.RR{*answer}
-		return m
+		return makeAnswerMessage(req, answer)
 	}
 
 	if q.Qtype == dns.TypeAAAA {
@@ -190,40 +201,37 @@ func (dnsProxy *DNSProxy) getMessageReply(req *dns.Msg) *dns.Msg {
 }
 
 func (dnsProxy *DNSProxy) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
-	if !dnsProxy.access.AllowedNetAddr(w.RemoteAddr()) {
-		dnsProxy.logger.Printf("DNS refusing query for \"%s\" from %s\n",
-			req.Question[0].Name, w.RemoteAddr())
-		m := new(dns.Msg)
-		m.SetRcode(req, dns.RcodeRefused)
-		w.WriteMsg(m)
-		return
-	}
-	// support only queries with exactly one question
+	var response *dns.Msg
+	var err error
 	if len(req.Question) != 1 {
 		dnsProxy.logger.Printf("DNS wrong number of questions from %s: %d\n",
 			w.RemoteAddr(), len(req.Question))
-		m := new(dns.Msg)
-		m.SetRcode(req, dns.RcodeFormatError)
-		w.WriteMsg(m)
-	}
-	if m := dnsProxy.getMessageReply(req); m != nil {
+		response = new(dns.Msg)
+		response.SetRcode(req, dns.RcodeFormatError)
+	} else if response = dnsProxy.checkVersionQuestion(req); response != nil {
 		dnsProxy.logger.Printf("DNS query from %s \"%s\" local answer: %s\n",
-			w.RemoteAddr(), req.Question[0].Name, m.Answer)
-		w.WriteMsg(m)
-		return
+			w.RemoteAddr(), req.Question[0].Name, response.Answer)
+	} else if !dnsProxy.access.AllowedNetAddr(w.RemoteAddr()) {
+		dnsProxy.logger.Printf("DNS refusing query for \"%s\" from %s\n",
+			req.Question[0].Name, w.RemoteAddr())
+		response = new(dns.Msg)
+		response.SetRcode(req, dns.RcodeRefused)
+	} else if response = dnsProxy.getMessageReply(req); response != nil {
+		dnsProxy.logger.Printf("DNS query from %s \"%s\" local answer: %s\n",
+			w.RemoteAddr(), req.Question[0].Name, response.Answer)
+	} else {
+		c := new(dns.Client)
+		response, _, err = c.Exchange(req, dnsProxy.config.Forwarder)
+		if err == nil {
+			dnsProxy.logger.Printf("DNS query from %s \"%s\" remote answer: %s\n",
+				w.RemoteAddr(), req.Question[0].Name, response.Answer)
+		} else {
+			dnsProxy.logger.Printf("DNS query from %s \"%s\" remote error: %s\n",
+				w.RemoteAddr(), req.Question[0].Name, err)
+			response = new(dns.Msg)
+			response.SetRcode(req, dns.RcodeServerFailure)
+		}
 	}
-	c := new(dns.Client)
-	response, _, err := c.Exchange(req, dnsProxy.config.Forwarder)
-	if err != nil {
-		dnsProxy.logger.Printf("DNS query from %s \"%s\" remote error: %s\n",
-			w.RemoteAddr(), req.Question[0].Name, err)
-		m := new(dns.Msg)
-		m.SetRcode(req, dns.RcodeServerFailure)
-		w.WriteMsg(m)
-		return
-	}
-	dnsProxy.logger.Printf("DNS query from %s \"%s\" remote answer: %s\n",
-		w.RemoteAddr(), req.Question[0].Name, response.Answer)
 	w.WriteMsg(response)
 }
 
