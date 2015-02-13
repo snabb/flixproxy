@@ -56,12 +56,12 @@ func main() {
 	var configFile string
 
 	pflag.StringVarP(&configFile, "conf", "c", CONFIG_FILE, "configuration file")
-        pflag.Parse()
+	pflag.Parse()
 
-       if pflag.NArg() > 0 {
-                pflag.Usage()
-                os.Exit(2)
-        }
+	if pflag.NArg() > 0 {
+		pflag.Usage()
+		os.Exit(2)
+	}
 
 	logger := log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile)
 

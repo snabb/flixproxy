@@ -27,17 +27,17 @@ import (
 )
 
 func ManyGlob(globs []string, str string) bool {
-        for _, g := range globs {
-                if glob.Glob(g, str) {
-                        return true
-                }
-        }
-        return false
+	for _, g := range globs {
+		if glob.Glob(g, str) {
+			return true
+		}
+	}
+	return false
 }
 
 func CopyAndClose(dst io.WriteCloser, src io.Reader) {
-        io.Copy(dst, src)
-        dst.Close()
+	io.Copy(dst, src)
+	dst.Close()
 }
 
 // eof
