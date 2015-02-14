@@ -52,7 +52,7 @@ func (config Config) AllowedIP(ip net.IP) bool {
 	return false
 }
 
-func (config Config) AllowedNetAddr(addr net.Addr) bool {
+func (config Config) AllowedAddr(addr net.Addr) bool {
 	host, _, err := net.SplitHostPort(addr.String())
 	if err != nil {
 		return false
@@ -65,7 +65,7 @@ func (config Config) AllowedNetAddr(addr net.Addr) bool {
 
 type Checker interface {
 	AllowedIP(net.IP) bool
-	AllowedNetAddr(net.Addr) bool
+	AllowedAddr(net.Addr) bool
 }
 
 // eof

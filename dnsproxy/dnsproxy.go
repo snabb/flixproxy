@@ -195,7 +195,7 @@ func (dnsProxy *DNSProxy) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	} else if response = dnsProxy.checkVersionQuestion(req); response != nil {
 		dnsProxy.logger.Printf("DNS query from %s \"%s\" local answer: %s\n",
 			w.RemoteAddr(), req.Question[0].Name, response.Answer)
-	} else if !dnsProxy.access.AllowedNetAddr(w.RemoteAddr()) {
+	} else if !dnsProxy.access.AllowedAddr(w.RemoteAddr()) {
 		dnsProxy.logger.Printf("DNS refusing query for \"%s\" from %s\n",
 			req.Question[0].Name, w.RemoteAddr())
 		response = new(dns.Msg)

@@ -70,7 +70,7 @@ func (httpProxy *HTTPProxy) doProxy() {
 			httpProxy.logger.Println("HTTP accept "+
 				httpProxy.config.Listen+" error:", err)
 		}
-		if httpProxy.access.AllowedNetAddr(conn.RemoteAddr()) {
+		if httpProxy.access.AllowedAddr(conn.RemoteAddr()) {
 			go httpProxy.handleHTTPConnection(conn)
 		} else {
 			go conn.Close()

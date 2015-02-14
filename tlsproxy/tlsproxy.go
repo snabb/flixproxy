@@ -68,7 +68,7 @@ func (tlsProxy *TLSProxy) doProxy() {
 			tlsProxy.logger.Println("TLS accept "+
 				tlsProxy.config.Listen+" error:", err)
 		}
-		if tlsProxy.access.AllowedNetAddr(conn.RemoteAddr()) {
+		if tlsProxy.access.AllowedAddr(conn.RemoteAddr()) {
 			go tlsProxy.handleTLSConnection(conn)
 		} else {
 			go conn.Close()
