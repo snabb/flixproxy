@@ -109,7 +109,7 @@ func (httpProxy *HTTPProxy) handleHTTPConnection(downstream net.Conn) {
 		return
 	}
 	if strings.Index(hostname, ":") == -1 {
-		hostname = hostname + ":80"
+		hostname = hostname + ":80" // XXX should use our local port number instead?
 	}
 	if util.ManyGlob(httpProxy.config.Upstreams, hostname) == false {
 		httpProxy.logger.Printf("HTTP request from %s: backend \"%s\" not allowed\n",

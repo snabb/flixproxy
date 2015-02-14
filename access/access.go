@@ -64,8 +64,8 @@ func (config Config) AllowedAddr(addr net.Addr) bool {
 }
 
 type Checker interface {
-	AllowedIP(net.IP) bool
-	AllowedAddr(net.Addr) bool
+	AllowedIP(ip net.IP) bool
+	AllowedAddr(addr net.Addr) bool
 }
 
 // eof
