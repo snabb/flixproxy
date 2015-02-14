@@ -118,7 +118,7 @@ func (tlsProxy *TLSProxy) handleTLSConnection(downstream net.Conn) {
 		downstream.Close()
 		return
 	}
-	restLength := (int(restLengthBytes[0]) << 8) + int(restLengthBytes[1])
+	restLength := int(restLengthBytes[0])<<8 + int(restLengthBytes[1])
 
 	rest := make([]byte, restLength)
 	_, err = io.ReadFull(downstream, rest)
