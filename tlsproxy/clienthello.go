@@ -43,25 +43,25 @@ package tlsproxy
 
 // TLS signaling cipher suite values
 const (
-        scsvRenegotiation uint16 = 0x00ff
+	scsvRenegotiation uint16 = 0x00ff
 )
 
 // TLS extension numbers
 const (
-        extensionServerName          uint16 = 0
-        extensionStatusRequest       uint16 = 5
-        extensionSupportedCurves     uint16 = 10
-        extensionSupportedPoints     uint16 = 11
-        extensionSignatureAlgorithms uint16 = 13
-        extensionALPN                uint16 = 16
-        extensionSessionTicket       uint16 = 35
-        extensionNextProtoNeg        uint16 = 13172 // not IANA assigned
-        extensionRenegotiationInfo   uint16 = 0xff01
+	extensionServerName          uint16 = 0
+	extensionStatusRequest       uint16 = 5
+	extensionSupportedCurves     uint16 = 10
+	extensionSupportedPoints     uint16 = 11
+	extensionSignatureAlgorithms uint16 = 13
+	extensionALPN                uint16 = 16
+	extensionSessionTicket       uint16 = 35
+	extensionNextProtoNeg        uint16 = 13172 // not IANA assigned
+	extensionRenegotiationInfo   uint16 = 0xff01
 )
 
 // TLS CertificateStatusType (RFC 3546)
 const (
-        statusTypeOCSP uint8 = 1
+	statusTypeOCSP uint8 = 1
 )
 
 // CurveID is the type of a TLS identifier for an elliptic curve. See
@@ -71,7 +71,7 @@ type CurveID uint16
 // signatureAndHash mirrors the TLS 1.2, SignatureAndHashAlgorithm struct. See
 // RFC 5246, section A.4.1.
 type signatureAndHash struct {
-        hash, signature uint8
+	hash, signature uint8
 }
 
 type clientHelloMsg struct {

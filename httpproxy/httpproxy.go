@@ -40,6 +40,8 @@ type HTTPProxy struct {
 type Config struct {
 	Listen    string
 	Upstreams []string
+	Deadline  int64
+	Idle      int64
 }
 
 func New(config Config, access access.Checker, logger *log.Logger) (httpProxy *HTTPProxy) {
@@ -79,6 +81,8 @@ func (httpProxy *HTTPProxy) doProxy() {
 }
 
 func (httpProxy *HTTPProxy) handleHTTPConnection(downstream net.Conn) {
+	util.SetDeadlineSeconds(downstream, httpProxy.config.Deadline)
+
 	reader := bufio.NewReader(downstream)
 	hostname := ""
 	readLines := list.New()
@@ -127,14 +131,42 @@ func (httpProxy *HTTPProxy) handleHTTPConnection(downstream net.Conn) {
 	httpProxy.logger.Printf("HTTP request from %s connected to backend \"%s\"\n",
 		downstream.RemoteAddr(), hostname)
 
+	util.SetDeadlineSeconds(upstream, httpProxy.config.Deadline)
+
 	for element := readLines.Front(); element != nil; element = element.Next() {
 		line := element.Value.(string)
-		upstream.Write([]byte(line))
-		upstream.Write([]byte("\r\n"))
+		if _, err = upstream.Write([]byte(line + "\r\n")); err != nil {
+			httpProxy.logger.Printf("HTTP request from %s: error writing to backend \"%s\": %s\n",
+				downstream.RemoteAddr(), hostname, err)
+			upstream.Close()
+			downstream.Close()
+			return
+		}
 	}
 
-	go util.CopyAndClose(upstream, reader)
-	go util.CopyAndClose(downstream, upstream)
+	// get all bytes buffered in bufio.Reader and send them to upstream so that we can resume
+	// using original net.Conn
+	buffered, err := util.ReadBufferedBytes(reader)
+	if err != nil {
+		httpProxy.logger.Printf("HTTP request from %s: error reading buffered bytes \"%s\": %s\n",
+			downstream.RemoteAddr(), hostname, err)
+		upstream.Close()
+		downstream.Close()
+		return
+	}
+	if _, err = upstream.Write(buffered); err != nil {
+		httpProxy.logger.Printf("HTTP request from %s: error writing to backend \"%s\": %s\n",
+			downstream.RemoteAddr(), hostname, err)
+		upstream.Close()
+		downstream.Close()
+		return
+	}
+	// reset current deadlines
+	util.SetDeadlineSeconds(upstream, 0)
+	util.SetDeadlineSeconds(downstream, 0)
+
+	go util.CopyAndCloseWithIdleTimeout(upstream, downstream, httpProxy.config.Idle)
+	go util.CopyAndCloseWithIdleTimeout(downstream, upstream, httpProxy.config.Idle)
 }
 
 // eof

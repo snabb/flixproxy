@@ -38,6 +38,8 @@ type TLSProxy struct {
 type Config struct {
 	Listen    string
 	Upstreams []string
+	Deadline  int64
+	Idle      int64
 }
 
 func New(config Config, access access.Checker, logger *log.Logger) (tlsProxy *TLSProxy) {
@@ -77,6 +79,8 @@ func (tlsProxy *TLSProxy) doProxy() {
 }
 
 func (tlsProxy *TLSProxy) handleTLSConnection(downstream net.Conn) {
+	util.SetDeadlineSeconds(downstream, tlsProxy.config.Deadline)
+
 	firstByte := make([]byte, 1)
 	_, err := io.ReadFull(downstream, firstByte)
 	if err != nil {
@@ -85,7 +89,7 @@ func (tlsProxy *TLSProxy) handleTLSConnection(downstream net.Conn) {
 		downstream.Close()
 		return
 	}
-	if firstByte[0] != 0x16 {	// recordTypeHandshake
+	if firstByte[0] != 0x16 { // recordTypeHandshake
 		tlsProxy.logger.Printf("TLS request from %s: not TLS\n", downstream.RemoteAddr())
 		downstream.Close()
 		return
@@ -124,7 +128,7 @@ func (tlsProxy *TLSProxy) handleTLSConnection(downstream net.Conn) {
 		downstream.Close()
 		return
 	}
-	if len(rest) == 0 || rest[0] != 1 {	// typeClientHello
+	if len(rest) == 0 || rest[0] != 1 { // typeClientHello
 		tlsProxy.logger.Printf("TLS request from %s: did not get ClientHello\n",
 			downstream.RemoteAddr())
 		downstream.Close()
@@ -162,6 +166,8 @@ func (tlsProxy *TLSProxy) handleTLSConnection(downstream net.Conn) {
 	tlsProxy.logger.Printf("TLS request from %s: connected to backend \"%s\"\n",
 		downstream.RemoteAddr(), target)
 
+	util.SetDeadlineSeconds(upstream, tlsProxy.config.Deadline)
+
 	if _, err = upstream.Write(append(append(append(firstByte, versionBytes...), restLengthBytes...), rest...)); err != nil {
 		tlsProxy.logger.Printf("TLS request from %s: error writing to backend \"%s\": %s\n",
 			downstream.RemoteAddr(), target, err)
@@ -169,9 +175,12 @@ func (tlsProxy *TLSProxy) handleTLSConnection(downstream net.Conn) {
 		upstream.Close()
 		return
 	}
+	// reset current deadlines
+	util.SetDeadlineSeconds(upstream, 0)
+	util.SetDeadlineSeconds(downstream, 0)
 
-	go util.CopyAndClose(upstream, downstream)
-	go util.CopyAndClose(downstream, upstream)
+	go util.CopyAndCloseWithIdleTimeout(upstream, downstream, tlsProxy.config.Idle)
+	go util.CopyAndCloseWithIdleTimeout(downstream, upstream, tlsProxy.config.Idle)
 }
 
 // eof
