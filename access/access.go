@@ -23,7 +23,6 @@ package access
 
 import (
 	"errors"
-	"log"
 	"net"
 )
 
@@ -44,21 +43,8 @@ func (myIPNet *myIPNet) UnmarshalTOML(d interface{}) (err error) {
 	return
 }
 
-type Access struct {
-	config Config
-	logger *log.Logger
-}
-
-func New(config Config, logger *log.Logger) (access *Access) {
-	access = &Access{
-		config: config,
-		logger: logger,
-	}
-	return
-}
-
-func (access *Access) AllowedIP(ip net.IP) bool {
-	for _, ipmask := range access.config.Allow {
+func (config Config) AllowedIP(ip net.IP) bool {
+	for _, ipmask := range config.Allow {
 		if ipmask.Contains(ip) {
 			return true
 		}
@@ -66,15 +52,20 @@ func (access *Access) AllowedIP(ip net.IP) bool {
 	return false
 }
 
-func (access *Access) AllowedNetAddr(addr net.Addr) bool {
+func (config Config) AllowedNetAddr(addr net.Addr) bool {
 	host, _, err := net.SplitHostPort(addr.String())
 	if err != nil {
 		return false
 	}
 	if ip := net.ParseIP(host); ip != nil {
-		return access.AllowedIP(ip)
+		return config.AllowedIP(ip)
 	}
 	return false
+}
+
+type Checker interface {
+	AllowedIP(net.IP) bool
+	AllowedNetAddr(net.Addr) bool
 }
 
 // eof

@@ -72,19 +72,17 @@ func main() {
 
 	logger.Println("starting listeners")
 
-	access := access.New(config.Access, logger)
-
 	var mydnsproxy *dnsproxy.DNSProxy
 	if config.DNS.Listen != "" {
-		mydnsproxy = dnsproxy.New(config.DNS, access, logger)
+		mydnsproxy = dnsproxy.New(config.DNS, config.Access, logger)
 	}
 	var myhttpproxy *httpproxy.HTTPProxy
 	if config.HTTP.Listen != "" {
-		myhttpproxy = httpproxy.New(config.HTTP, access, logger)
+		myhttpproxy = httpproxy.New(config.HTTP, config.Access, logger)
 	}
 	var mytlsproxy *tlsproxy.TLSProxy
 	if config.TLS.Listen != "" {
-		mytlsproxy = tlsproxy.New(config.TLS, access, logger)
+		mytlsproxy = tlsproxy.New(config.TLS, config.Access, logger)
 	}
 
 	sigCexit := make(chan os.Signal)

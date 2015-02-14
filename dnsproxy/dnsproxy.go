@@ -33,7 +33,7 @@ import (
 
 type DNSProxy struct {
 	config Config
-	access *access.Access
+	access access.Checker
 	logger *log.Logger
 }
 
@@ -93,7 +93,7 @@ func (spoof *rrSlice) UnmarshalTOML(d interface{}) (err error) {
 	return
 }
 
-func New(config Config, access *access.Access, logger *log.Logger) (dnsProxy *DNSProxy) {
+func New(config Config, access access.Checker, logger *log.Logger) (dnsProxy *DNSProxy) {
 	dnsProxy = &DNSProxy{
 		config: config,
 		access: access,

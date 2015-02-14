@@ -31,7 +31,7 @@ import (
 
 type TLSProxy struct {
 	config Config
-	access *access.Access
+	access access.Checker
 	logger *log.Logger
 }
 
@@ -40,7 +40,7 @@ type Config struct {
 	Upstreams []string
 }
 
-func New(config Config, access *access.Access, logger *log.Logger) (tlsProxy *TLSProxy) {
+func New(config Config, access access.Checker, logger *log.Logger) (tlsProxy *TLSProxy) {
 	tlsProxy = &TLSProxy{
 		config: config,
 		access: access,

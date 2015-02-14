@@ -33,7 +33,7 @@ import (
 
 type HTTPProxy struct {
 	config Config
-	access *access.Access
+	access access.Checker
 	logger *log.Logger
 }
 
@@ -42,7 +42,7 @@ type Config struct {
 	Upstreams []string
 }
 
-func New(config Config, access *access.Access, logger *log.Logger) (httpProxy *HTTPProxy) {
+func New(config Config, access access.Checker, logger *log.Logger) (httpProxy *HTTPProxy) {
 	httpProxy = &HTTPProxy{
 		config: config,
 		access: access,
