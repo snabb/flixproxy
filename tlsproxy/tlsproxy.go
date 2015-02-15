@@ -58,6 +58,7 @@ func (tlsProxy *TLSProxy) Stop() {
 }
 
 func (tlsProxy *TLSProxy) doProxy() {
+        tlsProxy.logger.Info("listening", "listen", tlsProxy.config.Listen)
 	listener, err := net.Listen("tcp", tlsProxy.config.Listen)
 	if err != nil {
 		tlsProxy.logger.Crit("listen tcp error", "listen", tlsProxy.config.Listen, "err", err)
@@ -71,7 +72,7 @@ func (tlsProxy *TLSProxy) doProxy() {
 		if tlsProxy.access.AllowedAddr(conn.RemoteAddr()) {
 			go tlsProxy.handleTLSConnection(conn)
 		} else {
-			tlsProxy.logger.Error("access denied", "src", conn.RemoteAddr())
+			tlsProxy.logger.Warn("access denied", "src", conn.RemoteAddr())
 			go conn.Close()
 		}
 	}
@@ -94,7 +95,7 @@ func (tlsProxy *TLSProxy) handleTLSConnection(downstream net.Conn) {
 		return
 	}
 	if firstByte[0] != 0x16 { // recordTypeHandshake
-		logger.Error("record type not handshake")
+		logger.Error("record type not handshake", "fistbyte", firstByte)
 		downstream.Close()
 		return
 	}

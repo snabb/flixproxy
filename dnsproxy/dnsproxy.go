@@ -100,11 +100,13 @@ func New(config Config, access access.Checker, logger log15.Logger) (dnsProxy *D
 		logger: logger,
 	}
 	go func() {
+		logger.Info("listening udp", "listen", config.Listen)
 		if err := dns.ListenAndServe(config.Listen, "udp", dnsProxy); err != nil {
 			logger.Crit("listen udp error", "err", err)
 		}
 	}()
 	go func() {
+		logger.Info("listening tcp", "listen", config.Listen)
 		if err := dns.ListenAndServe(config.Listen, "tcp", dnsProxy); err != nil {
 			logger.Crit("listen tcp error", "err", err)
 		}
@@ -196,7 +198,7 @@ func (dnsProxy *DNSProxy) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	} else if response = dnsProxy.checkVersionQuestion(req); response != nil {
 		logger.Debug("local answer", "question", req.Question[0].Name)
 	} else if !dnsProxy.access.AllowedAddr(w.RemoteAddr()) {
-		logger.Error("access denied", "question", req.Question[0].Name)
+		logger.Warn("access denied", "question", req.Question[0].Name)
 		response = new(dns.Msg)
 		response.SetRcode(req, dns.RcodeRefused)
 	} else if response = dnsProxy.getMessageReply(req); response != nil {

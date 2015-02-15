@@ -60,6 +60,7 @@ func (httpProxy *HTTPProxy) Stop() {
 }
 
 func (httpProxy *HTTPProxy) doProxy() {
+        httpProxy.logger.Info("listening", "listen", httpProxy.config.Listen)
 	listener, err := net.Listen("tcp", httpProxy.config.Listen)
 	if err != nil {
 		httpProxy.logger.Crit("listen tcp error", "listen", httpProxy.config.Listen, "err", err)
@@ -73,7 +74,7 @@ func (httpProxy *HTTPProxy) doProxy() {
 		if httpProxy.access.AllowedAddr(conn.RemoteAddr()) {
 			go httpProxy.handleHTTPConnection(conn)
 		} else {
-			httpProxy.logger.Error("access denied", "src", conn.RemoteAddr())
+			httpProxy.logger.Warn("access denied", "src", conn.RemoteAddr())
 
 			go conn.Close()
 		}
