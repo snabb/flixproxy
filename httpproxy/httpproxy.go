@@ -26,7 +26,7 @@ import (
 	"container/list"
 	"github.com/snabb/flixproxy/access"
 	"github.com/snabb/flixproxy/util"
-	"log"
+	"gopkg.in/inconshreveable/log15.v2"
 	"net"
 	"strings"
 )
@@ -34,7 +34,7 @@ import (
 type HTTPProxy struct {
 	config Config
 	access access.Checker
-	logger *log.Logger
+	logger log15.Logger
 }
 
 type Config struct {
@@ -44,7 +44,7 @@ type Config struct {
 	Idle      int64
 }
 
-func New(config Config, access access.Checker, logger *log.Logger) (httpProxy *HTTPProxy) {
+func New(config Config, access access.Checker, logger log15.Logger) (httpProxy *HTTPProxy) {
 	httpProxy = &HTTPProxy{
 		config: config,
 		access: access,
@@ -62,19 +62,19 @@ func (httpProxy *HTTPProxy) Stop() {
 func (httpProxy *HTTPProxy) doProxy() {
 	listener, err := net.Listen("tcp", httpProxy.config.Listen)
 	if err != nil {
-		httpProxy.logger.Fatalln("HTTP listen tcp "+
-			httpProxy.config.Listen+" error:", err)
+		httpProxy.logger.Crit("listen tcp error", "listen", httpProxy.config.Listen, "err", err)
 		return
 	}
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			httpProxy.logger.Println("HTTP accept "+
-				httpProxy.config.Listen+" error:", err)
+			httpProxy.logger.Error("accept error", "listen", httpProxy.config.Listen, "err", err)
 		}
 		if httpProxy.access.AllowedAddr(conn.RemoteAddr()) {
 			go httpProxy.handleHTTPConnection(conn)
 		} else {
+			httpProxy.logger.Error("access denied", "src", conn.RemoteAddr())
+
 			go conn.Close()
 		}
 	}
@@ -83,14 +83,19 @@ func (httpProxy *HTTPProxy) doProxy() {
 func (httpProxy *HTTPProxy) handleHTTPConnection(downstream net.Conn) {
 	util.SetDeadlineSeconds(downstream, httpProxy.config.Deadline)
 
+	logger := httpProxy.logger.New("src", downstream.RemoteAddr())
+
 	reader := bufio.NewReader(downstream)
 	hostname := ""
 	readLines := list.New()
 	for hostname == "" {
 		line, err := reader.ReadString('\n')
 		if err != nil {
-			httpProxy.logger.Printf("HTTP request from %s: %s\n",
-				downstream.RemoteAddr(), err)
+			if netError, ok := err.(net.Error); ok && netError.Timeout() {
+				logger.Info("timeout reading request")
+			} else {
+				logger.Error("error reading request", "err", err)
+			}
 			downstream.Close()
 			return
 		}
@@ -107,37 +112,33 @@ func (httpProxy *HTTPProxy) handleHTTPConnection(downstream net.Conn) {
 		}
 	}
 	if hostname == "" {
-		httpProxy.logger.Printf("HTTP request from %s: no hostname found\n",
-			downstream.RemoteAddr())
+		logger.Error("no hostname found")
 		downstream.Close()
 		return
 	}
 	if strings.Index(hostname, ":") == -1 {
 		hostname = hostname + ":80" // XXX should use our local port number instead?
 	}
+	logger = logger.New("backend", hostname)
 	if util.ManyGlob(httpProxy.config.Upstreams, hostname) == false {
-		httpProxy.logger.Printf("HTTP request from %s: backend \"%s\" not allowed\n",
-			downstream.RemoteAddr(), hostname)
+		logger.Error("backend not allowed")
 		downstream.Close()
 		return
 	}
 	upstream, err := net.Dial("tcp", hostname)
 	if err != nil {
-		httpProxy.logger.Printf("HTTP request from %s: error connecting to backend \"%s\": %s\n",
-			downstream.RemoteAddr(), hostname, err)
+		logger.Error("error connecting to backend", "err", err)
 		downstream.Close()
 		return
 	}
-	httpProxy.logger.Printf("HTTP request from %s connected to backend \"%s\"\n",
-		downstream.RemoteAddr(), hostname)
+	logger.Debug("connected to backend")
 
 	util.SetDeadlineSeconds(upstream, httpProxy.config.Deadline)
 
 	for element := readLines.Front(); element != nil; element = element.Next() {
 		line := element.Value.(string)
 		if _, err = upstream.Write([]byte(line + "\r\n")); err != nil {
-			httpProxy.logger.Printf("HTTP request from %s: error writing to backend \"%s\": %s\n",
-				downstream.RemoteAddr(), hostname, err)
+			logger.Error("error writing to backend", "err", err)
 			upstream.Close()
 			downstream.Close()
 			return
@@ -148,15 +149,13 @@ func (httpProxy *HTTPProxy) handleHTTPConnection(downstream net.Conn) {
 	// using original net.Conn
 	buffered, err := util.ReadBufferedBytes(reader)
 	if err != nil {
-		httpProxy.logger.Printf("HTTP request from %s: error reading buffered bytes \"%s\": %s\n",
-			downstream.RemoteAddr(), hostname, err)
+		logger.Error("error reading buffered bytes", "err", err)
 		upstream.Close()
 		downstream.Close()
 		return
 	}
 	if _, err = upstream.Write(buffered); err != nil {
-		httpProxy.logger.Printf("HTTP request from %s: error writing to backend \"%s\": %s\n",
-			downstream.RemoteAddr(), hostname, err)
+		logger.Error("error writing to backend", "err", err)
 		upstream.Close()
 		downstream.Close()
 		return

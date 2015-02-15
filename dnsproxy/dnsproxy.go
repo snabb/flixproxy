@@ -26,7 +26,7 @@ import (
 	"github.com/miekg/dns"
 	"github.com/ryanuber/go-glob"
 	"github.com/snabb/flixproxy/access"
-	"log"
+	"gopkg.in/inconshreveable/log15.v2"
 	"strconv"
 	"strings"
 )
@@ -34,7 +34,7 @@ import (
 type DNSProxy struct {
 	config Config
 	access access.Checker
-	logger *log.Logger
+	logger log15.Logger
 }
 
 type Config struct {
@@ -93,7 +93,7 @@ func (spoof *rrSlice) UnmarshalTOML(d interface{}) (err error) {
 	return
 }
 
-func New(config Config, access access.Checker, logger *log.Logger) (dnsProxy *DNSProxy) {
+func New(config Config, access access.Checker, logger log15.Logger) (dnsProxy *DNSProxy) {
 	dnsProxy = &DNSProxy{
 		config: config,
 		access: access,
@@ -101,12 +101,12 @@ func New(config Config, access access.Checker, logger *log.Logger) (dnsProxy *DN
 	}
 	go func() {
 		if err := dns.ListenAndServe(config.Listen, "udp", dnsProxy); err != nil {
-			logger.Fatalln("DNS error:", err)
+			logger.Crit("listen udp error", "err", err)
 		}
 	}()
 	go func() {
 		if err := dns.ListenAndServe(config.Listen, "tcp", dnsProxy); err != nil {
-			logger.Fatalln("DNS error:", err)
+			logger.Crit("listen tcp error", "err", err)
 		}
 	}()
 
@@ -187,31 +187,27 @@ func (dnsProxy *DNSProxy) getMessageReply(req *dns.Msg) *dns.Msg {
 func (dnsProxy *DNSProxy) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	var response *dns.Msg
 	var err error
+	logger := dnsProxy.logger.New("src", w.RemoteAddr())
+
 	if len(req.Question) != 1 {
-		dnsProxy.logger.Printf("DNS wrong number of questions from %s: %d\n",
-			w.RemoteAddr(), len(req.Question))
+		logger.Error("wrong number of questions", "n", len(req.Question))
 		response = new(dns.Msg)
 		response.SetRcode(req, dns.RcodeFormatError)
 	} else if response = dnsProxy.checkVersionQuestion(req); response != nil {
-		dnsProxy.logger.Printf("DNS query from %s \"%s\" local answer: %s\n",
-			w.RemoteAddr(), req.Question[0].Name, response.Answer)
+		logger.Debug("local answer", "question", req.Question[0].Name)
 	} else if !dnsProxy.access.AllowedAddr(w.RemoteAddr()) {
-		dnsProxy.logger.Printf("DNS refusing query for \"%s\" from %s\n",
-			req.Question[0].Name, w.RemoteAddr())
+		logger.Error("access denied", "question", req.Question[0].Name)
 		response = new(dns.Msg)
 		response.SetRcode(req, dns.RcodeRefused)
 	} else if response = dnsProxy.getMessageReply(req); response != nil {
-		dnsProxy.logger.Printf("DNS query from %s \"%s\" local answer: %s\n",
-			w.RemoteAddr(), req.Question[0].Name, response.Answer)
+		logger.Debug("local answer", "question", req.Question[0].Name)
 	} else {
 		c := new(dns.Client)
 		response, _, err = c.Exchange(req, dnsProxy.config.Forwarder)
 		if err == nil {
-			dnsProxy.logger.Printf("DNS query from %s \"%s\" remote answer: %s\n",
-				w.RemoteAddr(), req.Question[0].Name, response.Answer)
+			logger.Debug("remote answer", "question", req.Question[0].Name)
 		} else {
-			dnsProxy.logger.Printf("DNS query from %s \"%s\" remote error: %s\n",
-				w.RemoteAddr(), req.Question[0].Name, err)
+			logger.Error("remote error", "question", req.Question[0].Name, "err", err)
 			response = new(dns.Msg)
 			response.SetRcode(req, dns.RcodeServerFailure)
 		}

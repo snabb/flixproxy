@@ -31,7 +31,7 @@ import (
 	"github.com/snabb/flixproxy/dnsproxy"
 	"github.com/snabb/flixproxy/httpproxy"
 	"github.com/snabb/flixproxy/tlsproxy"
-	"log"
+	"gopkg.in/inconshreveable/log15.v2"
 	"os"
 	"os/signal"
 	"syscall"
@@ -63,32 +63,33 @@ func main() {
 		os.Exit(2)
 	}
 
-	logger := log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile)
+	logger := log15.New()
 
 	config, err := parseConfig(configFile)
 	if err != nil {
-		logger.Fatalln(err)
+		logger.Crit("error parsing configuration", "err", err)
+		os.Exit(2)
 	}
 
-	logger.Println("starting listeners")
+	logger.Info("starting listeners")
 
 	var mydnsproxy *dnsproxy.DNSProxy
 	if config.DNS.Listen != "" {
-		mydnsproxy = dnsproxy.New(config.DNS, config.Access, logger)
+		mydnsproxy = dnsproxy.New(config.DNS, config.Access, logger.New("proxy", "DNS"))
 	}
 	var myhttpproxy *httpproxy.HTTPProxy
 	if config.HTTP.Listen != "" {
-		myhttpproxy = httpproxy.New(config.HTTP, config.Access, logger)
+		myhttpproxy = httpproxy.New(config.HTTP, config.Access, logger.New("proxy", "HTTP"))
 	}
 	var mytlsproxy *tlsproxy.TLSProxy
 	if config.TLS.Listen != "" {
-		mytlsproxy = tlsproxy.New(config.TLS, config.Access, logger)
+		mytlsproxy = tlsproxy.New(config.TLS, config.Access, logger.New("proxy", "TLS"))
 	}
 
 	sigCexit := make(chan os.Signal)
 	signal.Notify(sigCexit, syscall.SIGTERM, syscall.SIGINT) // terminate gracefully
 
-	logger.Println("entering main loop")
+	logger.Info("entering main loop")
 MAINLOOP:
 	for {
 		select {
@@ -97,7 +98,7 @@ MAINLOOP:
 			break MAINLOOP
 		}
 	}
-	logger.Println("exiting, stopping listeners")
+	logger.Info("exiting, stopping listeners")
 	if mydnsproxy != nil {
 		mydnsproxy.Stop()
 	}
@@ -107,7 +108,7 @@ MAINLOOP:
 	if mytlsproxy != nil {
 		mytlsproxy.Stop()
 	}
-	logger.Println("bye")
+	logger.Info("bye")
 }
 
 // eof

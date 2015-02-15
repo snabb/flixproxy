@@ -24,15 +24,15 @@ package tlsproxy
 import (
 	"github.com/snabb/flixproxy/access"
 	"github.com/snabb/flixproxy/util"
+	"gopkg.in/inconshreveable/log15.v2"
 	"io"
-	"log"
 	"net"
 )
 
 type TLSProxy struct {
 	config Config
 	access access.Checker
-	logger *log.Logger
+	logger log15.Logger
 }
 
 type Config struct {
@@ -42,7 +42,7 @@ type Config struct {
 	Idle      int64
 }
 
-func New(config Config, access access.Checker, logger *log.Logger) (tlsProxy *TLSProxy) {
+func New(config Config, access access.Checker, logger log15.Logger) (tlsProxy *TLSProxy) {
 	tlsProxy = &TLSProxy{
 		config: config,
 		access: access,
@@ -60,19 +60,18 @@ func (tlsProxy *TLSProxy) Stop() {
 func (tlsProxy *TLSProxy) doProxy() {
 	listener, err := net.Listen("tcp", tlsProxy.config.Listen)
 	if err != nil {
-		tlsProxy.logger.Fatalln("TLS listen tcp "+
-			tlsProxy.config.Listen+" error:", err)
+		tlsProxy.logger.Crit("listen tcp error", "listen", tlsProxy.config.Listen, "err", err)
 		return
 	}
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			tlsProxy.logger.Println("TLS accept "+
-				tlsProxy.config.Listen+" error:", err)
+			tlsProxy.logger.Error("accept error", "listen", tlsProxy.config.Listen, "err", err)
 		}
 		if tlsProxy.access.AllowedAddr(conn.RemoteAddr()) {
 			go tlsProxy.handleTLSConnection(conn)
 		} else {
+			tlsProxy.logger.Error("access denied", "src", conn.RemoteAddr())
 			go conn.Close()
 		}
 	}
@@ -81,16 +80,21 @@ func (tlsProxy *TLSProxy) doProxy() {
 func (tlsProxy *TLSProxy) handleTLSConnection(downstream net.Conn) {
 	util.SetDeadlineSeconds(downstream, tlsProxy.config.Deadline)
 
+	logger := tlsProxy.logger.New("src", downstream.RemoteAddr())
+
 	firstByte := make([]byte, 1)
 	_, err := io.ReadFull(downstream, firstByte)
 	if err != nil {
-		tlsProxy.logger.Printf("TLS request from %s: error reading first byte: %s\n",
-			downstream.RemoteAddr(), err)
+		if netError, ok := err.(net.Error); ok && netError.Timeout() {
+			logger.Info("timeout reading first byte")
+		} else {
+			logger.Error("error reading first byte", "err", err)
+		}
 		downstream.Close()
 		return
 	}
 	if firstByte[0] != 0x16 { // recordTypeHandshake
-		tlsProxy.logger.Printf("TLS request from %s: not TLS\n", downstream.RemoteAddr())
+		logger.Error("record type not handshake")
 		downstream.Close()
 		return
 	}
@@ -98,14 +102,12 @@ func (tlsProxy *TLSProxy) handleTLSConnection(downstream net.Conn) {
 	versionBytes := make([]byte, 2)
 	_, err = io.ReadFull(downstream, versionBytes)
 	if err != nil {
-		tlsProxy.logger.Printf("TLS request from %s: error reading version bytes: %s\n",
-			downstream.RemoteAddr(), err)
+		logger.Error("error reading version bytes", "err", err)
 		downstream.Close()
 		return
 	}
 	if versionBytes[0] < 3 || (versionBytes[0] == 3 && versionBytes[1] < 1) {
-		tlsProxy.logger.Printf("TLS request from %s: error: SSL < 3.1 not supported\n",
-			downstream.RemoteAddr())
+		logger.Error("SSL < 3.1 not supported", "versionbytes", versionBytes)
 		downstream.Close()
 		return
 	}
@@ -113,8 +115,7 @@ func (tlsProxy *TLSProxy) handleTLSConnection(downstream net.Conn) {
 	restLengthBytes := make([]byte, 2)
 	_, err = io.ReadFull(downstream, restLengthBytes)
 	if err != nil {
-		tlsProxy.logger.Printf("TLS request from %s: error reading restLength bytes: %s\n",
-			downstream.RemoteAddr(), err)
+		logger.Error("error reading restLength bytes", "err", err)
 		downstream.Close()
 		return
 	}
@@ -123,54 +124,48 @@ func (tlsProxy *TLSProxy) handleTLSConnection(downstream net.Conn) {
 	rest := make([]byte, restLength)
 	_, err = io.ReadFull(downstream, rest)
 	if err != nil {
-		tlsProxy.logger.Printf("TLS request from %s: error reading rest of bytes: %s\n",
-			downstream.RemoteAddr(), err)
+		logger.Error("error reading rest of bytes", "err", err)
 		downstream.Close()
 		return
 	}
 	if len(rest) == 0 || rest[0] != 1 { // typeClientHello
-		tlsProxy.logger.Printf("TLS request from %s: did not get ClientHello\n",
-			downstream.RemoteAddr())
+		logger.Error("did not get ClientHello")
 		downstream.Close()
 		return
 	}
 
 	m := new(clientHelloMsg)
 	if !m.unmarshal(rest) {
-		tlsProxy.logger.Printf("TLS request from %s: error parsing ClientHello\n",
-			downstream.RemoteAddr())
+		logger.Error("error parsing ClientHello")
 		downstream.Close()
 		return
 	}
 	if m.serverName == "" {
-		tlsProxy.logger.Printf("TLS request from %s: error: no server name found\n",
-			downstream.RemoteAddr())
+		logger.Error("no server name found")
 		downstream.Close()
 		return
 	}
 	target := m.serverName + ":443" // XXX should use our local port number instead?
 
+	logger = logger.New("backend", target)
+
 	if util.ManyGlob(tlsProxy.config.Upstreams, target) == false {
-		tlsProxy.logger.Printf("TLS request from %s: backend \"%s\" not allowed\n",
-			downstream.RemoteAddr(), target)
+		logger.Error("backend not allowed")
 		downstream.Close()
 		return
 	}
 	upstream, err := net.Dial("tcp", target)
 	if err != nil {
-		tlsProxy.logger.Printf("TLS request from %s: error connecting to backend \"%s\": %s\n",
-			downstream.RemoteAddr(), target, err)
+		logger.Error("error connecting to backend", "err", err)
 		downstream.Close()
 		return
 	}
-	tlsProxy.logger.Printf("TLS request from %s: connected to backend \"%s\"\n",
-		downstream.RemoteAddr(), target)
+	logger.Debug("connected to backend")
 
 	util.SetDeadlineSeconds(upstream, tlsProxy.config.Deadline)
 
 	if _, err = upstream.Write(append(append(append(firstByte, versionBytes...), restLengthBytes...), rest...)); err != nil {
-		tlsProxy.logger.Printf("TLS request from %s: error writing to backend \"%s\": %s\n",
-			downstream.RemoteAddr(), target, err)
+		logger.Error("error writing to backend", "err", err)
 		downstream.Close()
 		upstream.Close()
 		return

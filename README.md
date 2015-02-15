@@ -27,17 +27,14 @@ Acknowledgements
 Some ideas and code may have been stolen from:
 
 - Borislav Nikolov, https://github.com/jackdoe/cacher
-
 - Giles Thomas, https://github.com/gpjt/stupid-proxy
 
 Flixproxy requires the following external Go libraries:
 
 - Andrew Gallant, https://github.com/BurntSushi/toml
-
 - Miek Gieben, https://github.com/miekg/dns
-
 - Alex Ogier, https://github.com/ogier/pflag
-
+- Alan Shreve, https://github.com/inconshreveable/log15
 - Ryan Uber, https://github.com/ryanuber/go-glob
 
 Thanks!
