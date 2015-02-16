@@ -60,12 +60,13 @@ func (httpProxy *HTTPProxy) Stop() {
 }
 
 func (httpProxy *HTTPProxy) doProxy() {
-        httpProxy.logger.Info("listening", "listen", httpProxy.config.Listen)
 	listener, err := net.Listen("tcp", httpProxy.config.Listen)
 	if err != nil {
 		httpProxy.logger.Crit("listen tcp error", "listen", httpProxy.config.Listen, "err", err)
 		return
 	}
+	httpProxy.logger.Info("listening", "listen", httpProxy.config.Listen)
+
 	for {
 		conn, err := listener.Accept()
 		if err != nil {

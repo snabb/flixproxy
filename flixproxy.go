@@ -34,6 +34,7 @@ import (
 	"gopkg.in/inconshreveable/log15.v2"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 )
 
@@ -53,6 +54,8 @@ func parseConfig(configFile string) (config config, err error) {
 }
 
 func main() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
 	var configFile string
 
 	pflag.StringVarP(&configFile, "conf", "c", CONFIG_FILE, "configuration file")
