@@ -188,30 +188,46 @@ func (dnsProxy *DNSProxy) getMessageReply(req *dns.Msg) *dns.Msg {
 	return nil
 }
 
+func questionString(q dns.Question) string {
+	tstr, ok := dns.TypeToString[q.Qtype]
+	if !ok {
+		tstr = strconv.Itoa(int(q.Qtype))
+	}
+	cstr, ok := dns.ClassToString[q.Qclass]
+	if !ok {
+		cstr = strconv.Itoa(int(q.Qclass))
+	}
+	return cstr + "·" + tstr + "·" + q.Name
+}
+
 func (dnsProxy *DNSProxy) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	var response *dns.Msg
 	var err error
 	logger := dnsProxy.logger.New("src", w.RemoteAddr())
 
-	if len(req.Question) != 1 {
+	if len(req.Question) == 0 {
+		logger.Debug("empty question")
+		response = new(dns.Msg)
+		response.SetReply(req)
+	} else if len(req.Question) > 1 {
 		logger.Error("wrong number of questions", "n", len(req.Question))
 		response = new(dns.Msg)
 		response.SetRcode(req, dns.RcodeFormatError)
 	} else if response = dnsProxy.checkVersionQuestion(req); response != nil {
-		logger.Debug("local answer", "question", req.Question[0].Name)
+		logger.Debug("local answer", "question", questionString(req.Question[0]))
 	} else if !dnsProxy.access.AllowedAddr(w.RemoteAddr()) {
-		logger.Warn("access denied", "question", req.Question[0].Name)
+		logger.Warn("access denied", "question", questionString(req.Question[0]))
 		response = new(dns.Msg)
 		response.SetRcode(req, dns.RcodeRefused)
 	} else if response = dnsProxy.getMessageReply(req); response != nil {
-		logger.Debug("local answer", "question", req.Question[0].Name)
+		logger.Debug("local answer", "question", questionString(req.Question[0]))
 	} else {
 		c := new(dns.Client)
 		response, _, err = c.Exchange(req, dnsProxy.config.Forwarder)
 		if err == nil {
-			logger.Debug("remote answer", "question", req.Question[0].Name)
+			logger.Debug("remote answer", "question", questionString(req.Question[0]))
 		} else {
-			logger.Error("remote error", "question", req.Question[0].Name, "err", err)
+			logger.Error("remote error", "question", questionString(req.Question[0]), "err", err)
 			response = new(dns.Msg)
 			response.SetRcode(req, dns.RcodeServerFailure)
 		}
