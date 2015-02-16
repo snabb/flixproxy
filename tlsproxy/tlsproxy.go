@@ -58,12 +58,12 @@ func (tlsProxy *TLSProxy) Stop() {
 }
 
 func (tlsProxy *TLSProxy) doProxy() {
+	tlsProxy.logger.Info("starting tcp listener", "listen", tlsProxy.config.Listen)
 	listener, err := net.Listen("tcp", tlsProxy.config.Listen)
 	if err != nil {
 		tlsProxy.logger.Crit("listen tcp error", "listen", tlsProxy.config.Listen, "err", err)
 		return
 	}
-	tlsProxy.logger.Info("listening", "listen", tlsProxy.config.Listen)
 
 	for {
 		conn, err := listener.Accept()

@@ -100,17 +100,15 @@ func New(config Config, access access.Checker, logger log15.Logger) (dnsProxy *D
 		logger: logger,
 	}
 	go func() {
+		logger.Info("starting udp listener", "listen", config.Listen)
 		if err := dns.ListenAndServe(config.Listen, "udp", dnsProxy); err != nil {
 			logger.Crit("listen udp error", "listen", config.Listen, "err", err)
-		} else {
-			logger.Info("listening udp", "listen", config.Listen)
 		}
 	}()
 	go func() {
+		logger.Info("starting tcp listener", "listen", config.Listen)
 		if err := dns.ListenAndServe(config.Listen, "tcp", dnsProxy); err != nil {
 			logger.Crit("listen tcp error", "listen", config.Listen, "err", err)
-		} else {
-			logger.Info("listening tcp", "listen", config.Listen)
 		}
 	}()
 
