@@ -25,6 +25,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/BurntSushi/toml"
 	"github.com/ogier/pflag"
 	"github.com/snabb/flixproxy/access"
@@ -48,17 +49,26 @@ type config struct {
 	TLS    tlsproxy.Config
 }
 
-func parseConfig(configFile string) (config config, err error) {
-	_, err = toml.DecodeFile(configFile, &config)
-	return
+func parseConfig(configFile string) (config, error) {
+	var config config
+	md, err := toml.DecodeFile(configFile, &config)
+	if err != nil {
+		return config, err
+	}
+	undecoded := md.Undecoded()
+	if len(undecoded) > 0 {
+		return config, fmt.Errorf("invalid configuration settings: %v", md.Undecoded())
+	}
+	return config, nil
 }
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	var configFile string
+	configFile := pflag.StringP("conf", "c", CONFIG_FILE, "configuration file")
+	testConfig := pflag.BoolP("test", "t", false, "test configuration")
+	version := pflag.BoolP("version", "v", false, "version")
 
-	pflag.StringVarP(&configFile, "conf", "c", CONFIG_FILE, "configuration file")
 	pflag.Parse()
 
 	if pflag.NArg() > 0 {
@@ -68,10 +78,18 @@ func main() {
 
 	logger := log15.New()
 
-	config, err := parseConfig(configFile)
+	config, err := parseConfig(*configFile)
 	if err != nil {
 		logger.Crit("error parsing configuration", "err", err)
 		os.Exit(2)
+	}
+	if *testConfig {
+		fmt.Println("Configuration file parsed successfully.")
+		os.Exit(0)
+	}
+	if *version {
+		fmt.Println("Flixproxy 0.20150217")
+		os.Exit(0)
 	}
 
 	logger.Info("starting listeners")
