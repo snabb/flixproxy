@@ -8,7 +8,7 @@ Netflix connections:
 
  - HTTP proxy which uses the "Host:" header to determine the backend.
 
- - HTTPS/TLS proxy which uses the Server Name Indication (SNI) extension
+ - TLS (HTTPS) proxy which uses the Server Name Indication (SNI) extension
    in the ClientHello TLS packet to determine the backend.
 
 You can run this software on a chep VPS in US and get the US version of
@@ -26,16 +26,16 @@ Acknowledgements
 
 Some ideas and code may have been stolen from:
 
-- Borislav Nikolov, https://github.com/jackdoe/cacher
-- Giles Thomas, https://github.com/gpjt/stupid-proxy
+- Borislav Nikolov, [github.com/jackdoe/cacher](https://github.com/jackdoe/cacher)
+- Giles Thomas, [github.com/gpjt/stupid-proxy](https://github.com/gpjt/stupid-proxy)
 
 Flixproxy requires the following external Go libraries:
 
-- Andrew Gallant, https://github.com/BurntSushi/toml
-- Miek Gieben, https://github.com/miekg/dns
-- Alex Ogier, https://github.com/ogier/pflag
-- Alan Shreve, https://github.com/inconshreveable/log15
-- Ryan Uber, https://github.com/ryanuber/go-glob
+- Andrew Gallant, [github.com/BurntSushi/toml](https://github.com/BurntSushi/toml)
+- Miek Gieben, [github.com/miekg/dns](https://github.com/miekg/dns)
+- Alex Ogier, [github.com/ogier/pflag](https://github.com/ogier/pflag)
+- Alan Shreve, [github.com/inconshreveable/log15](https://github.com/inconshreveable/log15)
+- Ryan Uber, [github.com/ryanuber/go-glob](https://github.com/ryanuber/go-glob)
 
 Thanks!
 
