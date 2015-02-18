@@ -48,7 +48,7 @@ type rrSlice struct {
 	wildRrs map[string]dns.RR
 }
 
-func makeKey(rrclass uint16, rrtype uint16, name string) string {
+func makeQuestionString(rrclass uint16, rrtype uint16, name string) string {
 	c, ok := dns.ClassToString[rrclass]
 	if !ok {
 		c = strconv.Itoa(int(rrclass))
@@ -57,7 +57,11 @@ func makeKey(rrclass uint16, rrtype uint16, name string) string {
 	if !ok {
 		t = strconv.Itoa(int(rrtype))
 	}
-	return c + "\000" + t + "\000" + strings.ToLower(name)
+	return c + "·" + t + "·" + name
+}
+
+func makeKey(rrclass uint16, rrtype uint16, name string) string {
+	return makeQuestionString(rrclass, rrtype, strings.ToLower(name))
 }
 
 func (spoof *rrSlice) UnmarshalTOML(d interface{}) (err error) {
@@ -187,15 +191,7 @@ func (dnsProxy *DNSProxy) getMessageReply(req *dns.Msg) *dns.Msg {
 }
 
 func questionString(q dns.Question) string {
-	tstr, ok := dns.TypeToString[q.Qtype]
-	if !ok {
-		tstr = strconv.Itoa(int(q.Qtype))
-	}
-	cstr, ok := dns.ClassToString[q.Qclass]
-	if !ok {
-		cstr = strconv.Itoa(int(q.Qclass))
-	}
-	return cstr + "·" + tstr + "·" + q.Name
+	return makeQuestionString(q.Qclass, q.Qtype, q.Name)
 }
 
 func (dnsProxy *DNSProxy) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
