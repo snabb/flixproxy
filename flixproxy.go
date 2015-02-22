@@ -43,10 +43,11 @@ import (
 const CONFIG_FILE = "flixproxy.conf"
 
 type config struct {
-	Access access.Config
-	DNS    dnsproxy.Config
-	HTTP   httpproxy.Config
-	TLS    tlsproxy.Config
+	Access  access.Config
+	Logging []LoggingTarget
+	DNS     dnsproxy.Config
+	HTTP    httpproxy.Config
+	TLS     tlsproxy.Config
 }
 
 func parseConfig(configFile string) (config, error) {
@@ -88,9 +89,10 @@ func main() {
 		os.Exit(0)
 	}
 	if *version {
-		fmt.Println("Flixproxy 0.20150217")
+		fmt.Println("Flixproxy 0.20150222")
 		os.Exit(0)
 	}
+	setupLogging(logger, config.Logging)
 
 	logger.Info("starting listeners")
 
