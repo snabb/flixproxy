@@ -44,8 +44,8 @@ type Config struct {
 }
 
 type rrSlice struct {
-	rrs     map[string]dns.RR
-	wildRrs map[string]dns.RR
+	rrs     map[string][]dns.RR
+	wildRrs map[string][]dns.RR
 }
 
 func makeQuestionString(rrclass uint16, rrtype uint16, name string) string {
@@ -69,8 +69,8 @@ func (spoof *rrSlice) UnmarshalTOML(d interface{}) (err error) {
 	if !ok {
 		return errors.New("Expected string")
 	}
-	spoof.rrs = make(map[string]dns.RR)
-	spoof.wildRrs = make(map[string]dns.RR)
+	spoof.rrs = make(map[string][]dns.RR)
+	spoof.wildRrs = make(map[string][]dns.RR)
 
 	for _, line := range strings.Split(spoofString, "\n") {
 		line = strings.TrimSpace(line)
@@ -89,9 +89,9 @@ func (spoof *rrSlice) UnmarshalTOML(d interface{}) (err error) {
 		key := makeKey(rr.Header().Class, rr.Header().Rrtype, strings.Fields(line)[0])
 
 		if strings.Contains(key, "*") {
-			spoof.wildRrs[key] = rr
+			spoof.wildRrs[key] = append(spoof.wildRrs[key], rr)
 		} else {
-			spoof.rrs[key] = rr
+			spoof.rrs[key] = append(spoof.rrs[key], rr)
 		}
 	}
 	return
@@ -123,11 +123,11 @@ func (dnsProxy *DNSProxy) Stop() {
 	// something
 }
 
-func makeAnswerMessage(req *dns.Msg, rr *dns.RR) *dns.Msg {
+func makeAnswerMessage(req *dns.Msg, rr []dns.RR) *dns.Msg {
 	m := new(dns.Msg)
 	m.SetReply(req)
 	m.RecursionAvailable = true
-	m.Answer = []dns.RR{*rr}
+	m.Answer = rr
 	return m
 }
 
@@ -147,22 +147,30 @@ func (dnsProxy *DNSProxy) checkVersionQuestion(req *dns.Msg) *dns.Msg {
 			},
 			Txt: []string{"Flixproxy"},
 		})
-		return makeAnswerMessage(req, &rr)
+		return makeAnswerMessage(req, []dns.RR{rr})
 	}
 	return nil
 }
 
-func (dnsProxy *DNSProxy) getQuestionAnswer(q dns.Question) *dns.RR {
+func (dnsProxy *DNSProxy) getQuestionAnswer(q dns.Question) []dns.RR {
 	qKey := makeKey(q.Qclass, q.Qtype, q.Name)
 
 	if rr, ok := dnsProxy.config.Spoof.rrs[qKey]; ok {
-		rr.Header().Name = q.Name
-		return &rr
+		rr2 := make([]dns.RR, len(rr))
+		for i := range rr {
+			rr2[i] = dns.Copy(rr[i])
+			rr2[i].Header().Name = q.Name
+		}
+		return rr2
 	}
 	for key, rr := range dnsProxy.config.Spoof.wildRrs {
 		if glob.Glob(key, qKey) {
-			rr.Header().Name = q.Name
-			return &rr
+			rr2 := make([]dns.RR, len(rr))
+			for i := range rr {
+				rr2[i] = dns.Copy(rr[i])
+				rr2[i].Header().Name = q.Name
+			}
+			return rr2
 		}
 	}
 	return nil
