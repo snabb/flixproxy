@@ -98,15 +98,15 @@ func main() {
 
 	var mydnsproxy *dnsproxy.DNSProxy
 	if config.DNS.Listen != "" {
-		mydnsproxy = dnsproxy.New(config.DNS, config.Access, logger.New("svc", "DNS"))
+		mydnsproxy = dnsproxy.New(config.DNS, config.Access, logger.New("s", "DNS "))
 	}
 	var myhttpproxy *httpproxy.HTTPProxy
 	if config.HTTP.Listen != "" {
-		myhttpproxy = httpproxy.New(config.HTTP, config.Access, logger.New("svc", "HTTP"))
+		myhttpproxy = httpproxy.New(config.HTTP, config.Access, logger.New("s", "HTTP"))
 	}
 	var mytlsproxy *tlsproxy.TLSProxy
 	if config.TLS.Listen != "" {
-		mytlsproxy = tlsproxy.New(config.TLS, config.Access, logger.New("svc", "TLS"))
+		mytlsproxy = tlsproxy.New(config.TLS, config.Access, logger.New("s", "TLS "))
 	}
 
 	sigCexit := make(chan os.Signal)
@@ -118,6 +118,7 @@ MAINLOOP:
 		select {
 		// there will probably be something more here in the future XXX
 		case <-sigCexit:
+			logger.Debug("signal SIGTERM received")
 			break MAINLOOP
 		}
 	}
