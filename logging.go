@@ -77,13 +77,13 @@ func setupLogging(logger log15.Logger, targets []LoggingTarget) {
 		}
 		handlers = append(handlers, handler)
 	}
-	if len(handlers) == 0 {
-		handlers = append(handlers, log15.DiscardHandler())
-	}
 	var handler log15.Handler
-	if len(handlers) == 1 {
+	switch len(handlers) {
+	case 0:
+		handler = log15.DiscardHandler()
+	case 1:
 		handler = handlers[0]
-	} else {
+	default:
 		handler = log15.MultiHandler(handlers...)
 	}
 	logger.SetHandler(handler)
