@@ -98,7 +98,7 @@ func main() {
 
 	var mydnsproxy *dnsproxy.DNSProxy
 	if config.DNS.Listen != "" {
-		mydnsproxy = dnsproxy.New(config.DNS, config.Access, logger.New("s", "DNS "))
+		mydnsproxy = dnsproxy.New(config.DNS, config.Access, logger.New("s", "DNS_"))
 	}
 	var myhttpproxy *httpproxy.HTTPProxy
 	if config.HTTP.Listen != "" {
@@ -106,7 +106,7 @@ func main() {
 	}
 	var mytlsproxy *tlsproxy.TLSProxy
 	if config.TLS.Listen != "" {
-		mytlsproxy = tlsproxy.New(config.TLS, config.Access, logger.New("s", "TLS "))
+		mytlsproxy = tlsproxy.New(config.TLS, config.Access, logger.New("s", "TLS_"))
 	}
 
 	sigCexit := make(chan os.Signal)
