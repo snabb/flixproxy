@@ -89,7 +89,7 @@ func main() {
 		os.Exit(0)
 	}
 	if *version {
-		fmt.Println("Flixproxy 0.20150222")
+		printVersion()
 		os.Exit(0)
 	}
 	setupLogging(logger, config.Logging)
@@ -133,6 +133,32 @@ MAINLOOP:
 		mytlsproxy.Stop()
 	}
 	logger.Info("bye")
+}
+
+func getGoEnvironment() string {
+	return fmt.Sprintf("%s %s (%s/%s)", runtime.Compiler, runtime.Version(),
+		runtime.GOOS, runtime.GOARCH)
+}
+
+func printVersion() {
+	fmt.Println("Flixproxy", VERSION, "- DNS, HTTP and TLS proxy")
+	fmt.Println("Built with", getGoEnvironment())
+	fmt.Println(`
+Copyright © 2015 Janne Snabb <snabb AT epipe.com>
+
+Flixproxy is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Flixproxy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with flixproxy. If not, see <http://www.gnu.org/licenses/>.
+`)
 }
 
 // eof
