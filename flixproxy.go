@@ -115,14 +115,20 @@ func main() {
 	sigCexit := make(chan os.Signal)
 	signal.Notify(sigCexit, syscall.SIGTERM, syscall.SIGINT) // terminate gracefully
 
+	sigChup := make(chan os.Signal)
+	signal.Notify(sigChup, syscall.SIGHUP) // reopen logs
+
 	logger.Info("entering main loop")
 MAINLOOP:
 	for {
 		select {
 		// there will probably be something more here in the future XXX
 		case <-sigCexit:
-			logger.Debug("signal SIGTERM received")
+			logger.Debug("exit signal received")
 			break MAINLOOP
+		case <-sigChup:
+			setupLogging(logger, config.Logging)
+			logger.Debug("reopened logs")
 		}
 	}
 	logger.Info("exiting, stopping listeners")
