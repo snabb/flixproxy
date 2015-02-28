@@ -90,13 +90,13 @@ func (tlsProxy *TLSProxy) handleTLSConnection(downstream net.Conn) {
 		if netError, ok := err.(net.Error); ok && netError.Timeout() {
 			logger.Info("timeout reading first byte")
 		} else {
-			logger.Error("error reading first byte", "err", err)
+			logger.Info("error reading first byte", "err", err)
 		}
 		downstream.Close()
 		return
 	}
 	if firstByte[0] != 0x16 { // recordTypeHandshake
-		logger.Error("record type not handshake", "fistbyte", firstByte)
+		logger.Warn("record type not handshake", "fistbyte", firstByte)
 		downstream.Close()
 		return
 	}
@@ -104,12 +104,12 @@ func (tlsProxy *TLSProxy) handleTLSConnection(downstream net.Conn) {
 	versionBytes := make([]byte, 2)
 	_, err = io.ReadFull(downstream, versionBytes)
 	if err != nil {
-		logger.Error("error reading version bytes", "err", err)
+		logger.Info("error reading version bytes", "err", err)
 		downstream.Close()
 		return
 	}
 	if versionBytes[0] < 3 || (versionBytes[0] == 3 && versionBytes[1] < 1) {
-		logger.Error("SSL < 3.1 not supported", "versionbytes", versionBytes)
+		logger.Warn("SSL < 3.1 not supported", "versionbytes", versionBytes)
 		downstream.Close()
 		return
 	}
@@ -117,7 +117,7 @@ func (tlsProxy *TLSProxy) handleTLSConnection(downstream net.Conn) {
 	restLengthBytes := make([]byte, 2)
 	_, err = io.ReadFull(downstream, restLengthBytes)
 	if err != nil {
-		logger.Error("error reading restLength bytes", "err", err)
+		logger.Info("error reading restLength bytes", "err", err)
 		downstream.Close()
 		return
 	}
@@ -126,19 +126,19 @@ func (tlsProxy *TLSProxy) handleTLSConnection(downstream net.Conn) {
 	rest := make([]byte, restLength)
 	_, err = io.ReadFull(downstream, rest)
 	if err != nil {
-		logger.Error("error reading rest of bytes", "err", err)
+		logger.Info("error reading rest of bytes", "err", err)
 		downstream.Close()
 		return
 	}
 	if len(rest) == 0 || rest[0] != 1 { // typeClientHello
-		logger.Error("did not get ClientHello")
+		logger.Warn("did not get ClientHello")
 		downstream.Close()
 		return
 	}
 
 	m := new(clientHelloMsg)
 	if !m.unmarshal(rest) {
-		logger.Error("error parsing ClientHello")
+		logger.Warn("error parsing ClientHello")
 		downstream.Close()
 		return
 	}
