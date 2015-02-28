@@ -45,9 +45,9 @@ const CONFIG_FILE = "flixproxy.conf"
 type config struct {
 	Access  access.Config
 	Logging []LoggingTarget
-	DNS     dnsproxy.Config
-	HTTP    httpproxy.Config
-	TLS     tlsproxy.Config
+	DNS     []dnsproxy.Config
+	HTTP    []httpproxy.Config
+	TLS     []tlsproxy.Config
 }
 
 func parseConfig(configFile string) (config, error) {
@@ -96,17 +96,20 @@ func main() {
 
 	logger.Info("starting listeners")
 
-	var mydnsproxy *dnsproxy.DNSProxy
-	if config.DNS.Listen != "" {
-		mydnsproxy = dnsproxy.New(config.DNS, config.Access, logger.New("s", "DNS_"))
+	var proxies []interface {
+		Stop()
 	}
-	var myhttpproxy *httpproxy.HTTPProxy
-	if config.HTTP.Listen != "" {
-		myhttpproxy = httpproxy.New(config.HTTP, config.Access, logger.New("s", "HTTP"))
+	for _, proxyConfig := range config.DNS {
+		proxies = append(proxies,
+			dnsproxy.New(proxyConfig, config.Access, logger.New("s", "DNS")))
 	}
-	var mytlsproxy *tlsproxy.TLSProxy
-	if config.TLS.Listen != "" {
-		mytlsproxy = tlsproxy.New(config.TLS, config.Access, logger.New("s", "TLS_"))
+	for _, proxyConfig := range config.HTTP {
+		proxies = append(proxies,
+			httpproxy.New(proxyConfig, config.Access, logger.New("s", "HTTP")))
+	}
+	for _, proxyConfig := range config.TLS {
+		proxies = append(proxies,
+			tlsproxy.New(proxyConfig, config.Access, logger.New("s", "TLS")))
 	}
 
 	sigCexit := make(chan os.Signal)
@@ -123,14 +126,8 @@ MAINLOOP:
 		}
 	}
 	logger.Info("exiting, stopping listeners")
-	if mydnsproxy != nil {
-		mydnsproxy.Stop()
-	}
-	if myhttpproxy != nil {
-		myhttpproxy.Stop()
-	}
-	if mytlsproxy != nil {
-		mytlsproxy.Stop()
+	for _, proxy := range proxies {
+		proxy.Stop()
 	}
 	logger.Info("bye")
 }
