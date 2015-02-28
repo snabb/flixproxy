@@ -120,11 +120,8 @@ func (httpProxy *HTTPProxy) handleHTTPConnection(downstream net.Conn) {
 			break
 		}
 	}
-	if httpProxy.config.LogRequest {
-		logger = logger.New("request", requestLine)
-	}
 	if hostname == "" {
-		logger.Error("no hostname found")
+		logger.Error("no hostname found", "request", requestLine)
 		downstream.Close()
 		return
 	}
@@ -132,6 +129,10 @@ func (httpProxy *HTTPProxy) handleHTTPConnection(downstream net.Conn) {
 		hostname = hostname + ":80" // XXX should use our local port number instead?
 	}
 	logger = logger.New("backend", hostname)
+
+	if httpProxy.config.LogRequest {
+		logger = logger.New("request", requestLine)
+	}
 	if util.ManyGlob(httpProxy.config.Upstreams, hostname) == false {
 		logger.Error("backend not allowed")
 		downstream.Close()
