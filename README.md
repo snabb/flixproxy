@@ -34,7 +34,7 @@ Flixproxy requires the following external Go libraries:
 - Andrew Gallant, [github.com/BurntSushi/toml](https://github.com/BurntSushi/toml)
 - Miek Gieben, [github.com/miekg/dns](https://github.com/miekg/dns)
 - Alex Ogier, [github.com/ogier/pflag](https://github.com/ogier/pflag)
-- Alan Shreve, [github.com/inconshreveable/log15](https://github.com/inconshreveable/log15)
+- Alan Shreve, [gopkg.in/inconshreveable/log15.v2](https://github.com/inconshreveable/log15)
 - Ryan Uber, [github.com/ryanuber/go-glob](https://github.com/ryanuber/go-glob)
 
 Thanks!
