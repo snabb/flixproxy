@@ -75,6 +75,7 @@ func (httpProxy *HTTPProxy) doProxy() {
 		conn, err := listener.Accept()
 		if err != nil {
 			httpProxy.logger.Error("accept error", "listen", httpProxy.config.Listen, "err", err)
+			continue
 		}
 		if httpProxy.access.AllowedAddr(conn.RemoteAddr()) {
 			go httpProxy.handleHTTPConnection(conn)
