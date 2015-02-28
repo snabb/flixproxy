@@ -90,7 +90,7 @@ func (httpProxy *HTTPProxy) handleHTTPConnection(downstream net.Conn) {
 	reader := bufio.NewReader(downstream)
 	hostname := ""
 	readLines := list.New()
-	for hostname == "" {
+	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			if netError, ok := err.(net.Error); ok && netError.Timeout() {
@@ -108,8 +108,9 @@ func (httpProxy *HTTPProxy) handleHTTPConnection(downstream net.Conn) {
 			// end of HTTP headers
 			break
 		}
-		if strings.HasPrefix(line, "Host: ") {
-			hostname = strings.TrimPrefix(line, "Host: ")
+		if strings.HasPrefix(line, "Host:") {
+			hostname = strings.TrimPrefix(line, "Host:")
+			hostname = strings.TrimSpace(hostname)
 			break
 		}
 	}
