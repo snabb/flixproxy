@@ -23,7 +23,6 @@ package httpproxy
 
 import (
 	"bufio"
-	"container/list"
 	"github.com/snabb/flixproxy/access"
 	"github.com/snabb/flixproxy/util"
 	"gopkg.in/inconshreveable/log15.v2"
@@ -38,10 +37,11 @@ type HTTPProxy struct {
 }
 
 type Config struct {
-	Listen    string
-	Upstreams []string
-	Deadline  int64
-	Idle      int64
+	Listen     string
+	Upstreams  []string
+	Deadline   int64
+	Idle       int64
+	LogRequest bool
 }
 
 func New(config Config, access access.Checker, logger log15.Logger) (httpProxy *HTTPProxy) {
@@ -89,7 +89,8 @@ func (httpProxy *HTTPProxy) handleHTTPConnection(downstream net.Conn) {
 
 	reader := bufio.NewReader(downstream)
 	hostname := ""
-	readLines := list.New()
+	var lines []string
+	var requestLine string
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
@@ -101,9 +102,14 @@ func (httpProxy *HTTPProxy) handleHTTPConnection(downstream net.Conn) {
 			downstream.Close()
 			return
 		}
+		lines = append(lines, line)
 		line = strings.TrimSuffix(line, "\n")
 		line = strings.TrimSuffix(line, "\r")
-		readLines.PushBack(line)
+		if len(lines) == 1 {
+			// this is the HTTP Request-Line
+			requestLine = line
+			continue
+		}
 		if line == "" {
 			// end of HTTP headers
 			break
@@ -113,6 +119,9 @@ func (httpProxy *HTTPProxy) handleHTTPConnection(downstream net.Conn) {
 			hostname = strings.TrimSpace(hostname)
 			break
 		}
+	}
+	if httpProxy.config.LogRequest {
+		logger = logger.New("request", requestLine)
 	}
 	if hostname == "" {
 		logger.Error("no hostname found")
@@ -138,9 +147,8 @@ func (httpProxy *HTTPProxy) handleHTTPConnection(downstream net.Conn) {
 
 	util.SetDeadlineSeconds(upstream, httpProxy.config.Deadline)
 
-	for element := readLines.Front(); element != nil; element = element.Next() {
-		line := element.Value.(string)
-		if _, err = upstream.Write([]byte(line + "\r\n")); err != nil {
+	for _, line := range lines {
+		if _, err = upstream.Write([]byte(line)); err != nil {
 			logger.Error("error writing to backend", "err", err)
 			upstream.Close()
 			downstream.Close()
