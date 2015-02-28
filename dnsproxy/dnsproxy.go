@@ -38,6 +38,7 @@ type DNSProxy struct {
 }
 
 type Config struct {
+	Id        string
 	Listen    string
 	Forwarder string
 	Spoof     rrSlice
@@ -98,6 +99,9 @@ func (spoof *rrSlice) UnmarshalTOML(d interface{}) (err error) {
 }
 
 func New(config Config, access access.Checker, logger log15.Logger) (dnsProxy *DNSProxy) {
+	if config.Id != "" {
+		logger = logger.New("id", config.Id)
+	}
 	dnsProxy = &DNSProxy{
 		config: config,
 		access: access,

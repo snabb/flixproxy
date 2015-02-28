@@ -36,6 +36,7 @@ type TLSProxy struct {
 }
 
 type Config struct {
+	Id        string
 	Listen    string
 	Upstreams []string
 	Deadline  int64
@@ -43,6 +44,9 @@ type Config struct {
 }
 
 func New(config Config, access access.Checker, logger log15.Logger) (tlsProxy *TLSProxy) {
+	if config.Id != "" {
+		logger = logger.New("id", config.Id)
+	}
 	tlsProxy = &TLSProxy{
 		config: config,
 		access: access,

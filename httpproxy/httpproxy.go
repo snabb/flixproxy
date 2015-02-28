@@ -37,6 +37,7 @@ type HTTPProxy struct {
 }
 
 type Config struct {
+	Id         string
 	Listen     string
 	Upstreams  []string
 	Deadline   int64
@@ -45,6 +46,9 @@ type Config struct {
 }
 
 func New(config Config, access access.Checker, logger log15.Logger) (httpProxy *HTTPProxy) {
+	if config.Id != "" {
+		logger = logger.New("id", config.Id)
+	}
 	httpProxy = &HTTPProxy{
 		config: config,
 		access: access,
