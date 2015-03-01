@@ -40,6 +40,7 @@ type DNSProxy struct {
 type Config struct {
 	Id        string
 	Listen    string
+	Acl       string
 	Forwarder string
 	Spoof     rrSlice
 }

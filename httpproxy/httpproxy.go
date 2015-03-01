@@ -39,6 +39,7 @@ type HTTPProxy struct {
 type Config struct {
 	Id         string
 	Listen     string
+	Acl        string
 	Upstreams  []string
 	Deadline   int64
 	Idle       int64

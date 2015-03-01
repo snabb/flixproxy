@@ -43,7 +43,7 @@ import (
 const CONFIG_FILE = "flixproxy.conf"
 
 type config struct {
-	Access  access.Config
+	Acl     access.Config
 	Logging []LoggingTarget
 	DNS     []dnsproxy.Config
 	HTTP    []httpproxy.Config
@@ -101,15 +101,15 @@ func main() {
 	}
 	for _, proxyConfig := range config.DNS {
 		proxies = append(proxies,
-			dnsproxy.New(proxyConfig, config.Access, logger.New("s", "DNS")))
+			dnsproxy.New(proxyConfig, config.Acl.GetAcl(proxyConfig.Acl), logger.New("s", "DNS")))
 	}
 	for _, proxyConfig := range config.HTTP {
 		proxies = append(proxies,
-			httpproxy.New(proxyConfig, config.Access, logger.New("s", "HTTP")))
+			httpproxy.New(proxyConfig, config.Acl.GetAcl(proxyConfig.Acl), logger.New("s", "HTTP")))
 	}
 	for _, proxyConfig := range config.TLS {
 		proxies = append(proxies,
-			tlsproxy.New(proxyConfig, config.Access, logger.New("s", "TLS")))
+			tlsproxy.New(proxyConfig, config.Acl.GetAcl(proxyConfig.Acl), logger.New("s", "TLS")))
 	}
 
 	sigCexit := make(chan os.Signal)

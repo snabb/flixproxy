@@ -26,9 +26,12 @@ import (
 	"net"
 )
 
-type Config struct {
-	Allow []myIPNet
+type Acl []struct {
+	Allow bool
+	Cidr  myIPNet
 }
+
+type Config map[string]Acl
 
 type myIPNet struct {
 	*net.IPNet
@@ -37,30 +40,34 @@ type myIPNet struct {
 func (myIPNet *myIPNet) UnmarshalTOML(d interface{}) (err error) {
 	ipstring, ok := d.(string)
 	if !ok {
-		return errors.New("Expected array of strings")
+		return errors.New("Expected string")
 	}
 	_, myIPNet.IPNet, err = net.ParseCIDR(ipstring)
 	return
 }
 
-func (config Config) AllowedIP(ip net.IP) bool {
-	for _, ipmask := range config.Allow {
-		if ipmask.Contains(ip) {
-			return true
+func (acl Acl) AllowedIP(ip net.IP) bool {
+	for _, rule := range acl {
+		if rule.Cidr.Contains(ip) {
+			return rule.Allow
 		}
 	}
 	return false
 }
 
-func (config Config) AllowedAddr(addr net.Addr) bool {
+func (acl Acl) AllowedAddr(addr net.Addr) bool {
 	host, _, err := net.SplitHostPort(addr.String())
 	if err != nil {
 		return false
 	}
 	if ip := net.ParseIP(host); ip != nil {
-		return config.AllowedIP(ip)
+		return acl.AllowedIP(ip)
 	}
 	return false
+}
+
+func (config Config) GetAcl(name string) Acl {
+	return config[name]
 }
 
 type Checker interface {
