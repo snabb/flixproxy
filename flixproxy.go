@@ -26,13 +26,14 @@ package main
 
 import (
 	"fmt"
-	"github.com/BurntSushi/toml"
 	"github.com/ogier/pflag"
 	"github.com/snabb/flixproxy/access"
 	"github.com/snabb/flixproxy/dnsproxy"
 	"github.com/snabb/flixproxy/httpproxy"
 	"github.com/snabb/flixproxy/tlsproxy"
 	"gopkg.in/inconshreveable/log15.v2"
+	"gopkg.in/yaml.v2"
+	"io/ioutil"
 	"os"
 	"os/signal"
 	"runtime"
@@ -52,15 +53,13 @@ type config struct {
 
 func parseConfig(configFile string) (config, error) {
 	var config config
-	md, err := toml.DecodeFile(configFile, &config)
+
+	configText, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		return config, err
 	}
-	undecoded := md.Undecoded()
-	if len(undecoded) > 0 {
-		return config, fmt.Errorf("invalid configuration settings: %v", md.Undecoded())
-	}
-	return config, nil
+	err = yaml.Unmarshal(configText, &config)
+	return config, err
 }
 
 func main() {
@@ -86,6 +85,7 @@ func main() {
 	}
 	if *testConfig {
 		fmt.Println("Configuration file parsed successfully.")
+		fmt.Printf("%+v\n", config)
 		os.Exit(0)
 	}
 	if *version {

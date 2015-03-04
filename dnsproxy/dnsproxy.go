@@ -66,11 +66,7 @@ func makeKey(rrclass uint16, rrtype uint16, name string) string {
 	return makeQuestionString(rrclass, rrtype, strings.ToLower(name))
 }
 
-func (spoof *rrSlice) UnmarshalTOML(d interface{}) (err error) {
-	spoofString, ok := d.(string)
-	if !ok {
-		return errors.New("Expected string")
-	}
+func (spoof *rrSlice) unmarshalAny(spoofString string) (err error) {
 	spoof.rrs = make(map[string][]dns.RR)
 	spoof.wildRrs = make(map[string][]dns.RR)
 
@@ -97,6 +93,22 @@ func (spoof *rrSlice) UnmarshalTOML(d interface{}) (err error) {
 		}
 	}
 	return
+}
+
+func (spoof *rrSlice) UnmarshalYAML(unmarshal func(v interface{}) error) (err error) {
+	var spoofString string
+	if err = unmarshal(&spoofString); err != nil {
+		return
+	}
+	return spoof.unmarshalAny(spoofString)
+}
+
+func (spoof *rrSlice) UnmarshalTOML(d interface{}) (err error) {
+	spoofString, ok := d.(string)
+	if !ok {
+		return errors.New("Expected string")
+	}
+	return spoof.unmarshalAny(spoofString)
 }
 
 func New(config Config, access access.Checker, logger log15.Logger) (dnsProxy *DNSProxy) {

@@ -37,6 +37,15 @@ type myIPNet struct {
 	*net.IPNet
 }
 
+func (myIPNet *myIPNet) UnmarshalYAML(unmarshal func(v interface{}) error) (err error) {
+	var ipstring string
+	if err = unmarshal(&ipstring); err != nil {
+		return
+	}
+	_, myIPNet.IPNet, err = net.ParseCIDR(ipstring)
+	return
+}
+
 func (myIPNet *myIPNet) UnmarshalTOML(d interface{}) (err error) {
 	ipstring, ok := d.(string)
 	if !ok {
