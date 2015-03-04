@@ -1,0 +1,12 @@
+[Unit]
+Description=Flixproxy - DNS, HTTP and TLS proxy
+After=syslog.target network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/flixproxy
+
+[Install]
+WantedBy=multi-user.target
+PrivateDevices=yes
+
