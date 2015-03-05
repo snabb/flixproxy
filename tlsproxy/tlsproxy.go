@@ -55,7 +55,7 @@ func New(config Config, access access.Checker, logger log15.Logger) (tlsProxy *T
 	}
 	go tlsProxy.doProxy()
 
-	return
+	return tlsProxy
 }
 
 func (tlsProxy *TLSProxy) Stop() {

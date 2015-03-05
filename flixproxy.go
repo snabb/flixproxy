@@ -51,9 +51,7 @@ type config struct {
 	TLS     []tlsproxy.Config
 }
 
-func parseConfig(configFile string) (config, error) {
-	var config config
-
+func parseConfig(configFile string) (config config, err error) {
 	configText, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		return config, err
@@ -138,7 +136,7 @@ MAINLOOP:
 	logger.Info("bye")
 }
 
-func getGoEnvironment() string {
+func getGoEnvironment() (environment string) {
 	return fmt.Sprintf("%s %s (%s/%s)", runtime.Compiler, runtime.Version(),
 		runtime.GOOS, runtime.GOARCH)
 }

@@ -57,7 +57,7 @@ func New(config Config, access access.Checker, logger log15.Logger) (httpProxy *
 	}
 	go httpProxy.doProxy()
 
-	return
+	return httpProxy
 }
 
 func (httpProxy *HTTPProxy) Stop() {

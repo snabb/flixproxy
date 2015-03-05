@@ -43,7 +43,7 @@ func (myIPNet *myIPNet) UnmarshalYAML(unmarshal func(v interface{}) error) (err 
 		return
 	}
 	_, myIPNet.IPNet, err = net.ParseCIDR(ipstring)
-	return
+	return err
 }
 
 func (myIPNet *myIPNet) UnmarshalTOML(d interface{}) (err error) {
@@ -52,7 +52,7 @@ func (myIPNet *myIPNet) UnmarshalTOML(d interface{}) (err error) {
 		return errors.New("Expected string")
 	}
 	_, myIPNet.IPNet, err = net.ParseCIDR(ipstring)
-	return
+	return err
 }
 
 func (acl Acl) AllowedIP(ip net.IP) bool {

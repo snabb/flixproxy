@@ -29,7 +29,7 @@ import (
 	"time"
 )
 
-func ManyGlob(globs []string, str string) bool {
+func ManyGlob(globs []string, str string) (matched bool) {
 	for _, g := range globs {
 		if glob.Glob(g, str) {
 			return true
@@ -38,21 +38,21 @@ func ManyGlob(globs []string, str string) bool {
 	return false
 }
 
-func SetDeadlineSeconds(conn net.Conn, seconds int64) error {
+func SetDeadlineSeconds(conn net.Conn, seconds int64) (err error) {
 	if seconds == 0 {
 		return conn.SetDeadline(time.Time{})
 	}
 	return conn.SetDeadline(time.Now().Add(time.Duration(seconds) * time.Second))
 }
 
-func SetReadDeadlineSeconds(conn net.Conn, seconds int64) error {
+func SetReadDeadlineSeconds(conn net.Conn, seconds int64) (err error) {
 	if seconds == 0 {
 		return conn.SetReadDeadline(time.Time{})
 	}
 	return conn.SetReadDeadline(time.Now().Add(time.Duration(seconds) * time.Second))
 }
 
-func SetWriteDeadlineSeconds(conn net.Conn, seconds int64) error {
+func SetWriteDeadlineSeconds(conn net.Conn, seconds int64) (err error) {
 	if seconds == 0 {
 		return conn.SetWriteDeadline(time.Time{})
 	}
@@ -100,13 +100,13 @@ func CopyAndCloseWithIdleTimeout(dst net.Conn, src net.Conn, timeout int64) {
 	dst.Close()
 }
 
-func ReadBufferedBytes(rd *bufio.Reader) ([]byte, error) {
+func ReadBufferedBytes(rd *bufio.Reader) (buf []byte, err error) {
 	count := rd.Buffered()
 	if count == 0 {
 		return []byte{}, nil
 	}
-	buf := make([]byte, count)
-	_, err := io.ReadFull(rd, buf)
+	buf = make([]byte, count)
+	_, err = io.ReadFull(rd, buf)
 	return buf, err
 }
 
