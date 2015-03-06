@@ -53,7 +53,7 @@ func New(config Config, access access.Checker, logger log15.Logger) (tlsProxy *T
 		access: access,
 		logger: logger,
 	}
-	go tlsProxy.doProxy()
+	go util.ListenAndServe(tlsProxy.config.Listen, tlsProxy, logger)
 
 	return tlsProxy
 }
@@ -62,42 +62,17 @@ func (tlsProxy *TLSProxy) Stop() {
 	// something
 }
 
-func (tlsProxy *TLSProxy) doProxy() {
-	tlsProxy.logger.Info("starting tcp listener", "listen", tlsProxy.config.Listen)
-	laddr, err := net.ResolveTCPAddr("tcp", tlsProxy.config.Listen)
-	if err != nil {
-		tlsProxy.logger.Crit("listen address error", "listen", tlsProxy.config.Listen, "err", err)
-		return
-	}
-	listener, err := net.ListenTCP("tcp", laddr)
-	if err != nil {
-		tlsProxy.logger.Crit("listen tcp error", "listen", tlsProxy.config.Listen, "err", err)
-		return
-	}
-
-	for {
-		conn, err := listener.AcceptTCP()
-		if err != nil {
-			tlsProxy.logger.Error("accept error", "listen", tlsProxy.config.Listen, "err", err)
-			continue
-		}
-		go func() {
-			if tlsProxy.access.AllowedAddr(conn.RemoteAddr()) {
-				tlsProxy.handleTLSConnection(conn)
-			} else {
-				tlsProxy.logger.Warn("access denied", "src", conn.RemoteAddr())
-				conn.Close()
-			}
-		}()
-	}
-}
-
-func (tlsProxy *TLSProxy) handleTLSConnection(downstream *net.TCPConn) {
+func (tlsProxy *TLSProxy) HandleConn(downstream *net.TCPConn) {
 	defer downstream.Close()
 
 	util.SetDeadlineSeconds(downstream, tlsProxy.config.Deadline)
 
 	logger := tlsProxy.logger.New("src", downstream.RemoteAddr())
+
+	if !tlsProxy.access.AllowedAddr(downstream.RemoteAddr()) {
+		logger.Warn("access denied")
+		return
+	}
 
 	firstByte := make([]byte, 1)
 	_, err := io.ReadFull(downstream, firstByte)

@@ -55,7 +55,7 @@ func New(config Config, access access.Checker, logger log15.Logger) (httpProxy *
 		access: access,
 		logger: logger,
 	}
-	go httpProxy.doProxy()
+	go util.ListenAndServe(httpProxy.config.Listen, httpProxy, logger)
 
 	return httpProxy
 }
@@ -64,42 +64,17 @@ func (httpProxy *HTTPProxy) Stop() {
 	// something
 }
 
-func (httpProxy *HTTPProxy) doProxy() {
-	httpProxy.logger.Info("starting tcp listener", "listen", httpProxy.config.Listen)
-	laddr, err := net.ResolveTCPAddr("tcp", httpProxy.config.Listen)
-	if err != nil {
-		httpProxy.logger.Crit("listen address error", "listen", httpProxy.config.Listen, "err", err)
-		return
-	}
-	listener, err := net.ListenTCP("tcp", laddr)
-	if err != nil {
-		httpProxy.logger.Crit("listen tcp error", "listen", httpProxy.config.Listen, "err", err)
-		return
-	}
-
-	for {
-		conn, err := listener.AcceptTCP()
-		if err != nil {
-			httpProxy.logger.Error("accept error", "listen", httpProxy.config.Listen, "err", err)
-			continue
-		}
-		go func() {
-			if httpProxy.access.AllowedAddr(conn.RemoteAddr()) {
-				httpProxy.handleHTTPConnection(conn)
-			} else {
-				httpProxy.logger.Warn("access denied", "src", conn.RemoteAddr())
-				conn.Close()
-			}
-		}()
-	}
-}
-
-func (httpProxy *HTTPProxy) handleHTTPConnection(downstream *net.TCPConn) {
+func (httpProxy *HTTPProxy) HandleConn(downstream *net.TCPConn) {
 	defer downstream.Close()
 
 	util.SetDeadlineSeconds(downstream, httpProxy.config.Deadline)
 
 	logger := httpProxy.logger.New("src", downstream.RemoteAddr())
+
+	if !httpProxy.access.AllowedAddr(downstream.RemoteAddr()) {
+		logger.Warn("access denied")
+		return
+	}
 
 	reader := bufio.NewReader(downstream)
 	hostname := ""

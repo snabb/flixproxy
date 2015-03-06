@@ -24,6 +24,7 @@ package util
 import (
 	"bufio"
 	"github.com/ryanuber/go-glob"
+	"gopkg.in/inconshreveable/log15.v2"
 	"io"
 	"net"
 	"time"
@@ -98,6 +99,33 @@ func ReadBufferedBytes(rd *bufio.Reader) (buf []byte, err error) {
 	buf = make([]byte, count)
 	_, err = io.ReadFull(rd, buf)
 	return buf, err
+}
+
+type Handler interface {
+	HandleConn(*net.TCPConn)
+}
+
+func ListenAndServe(listen string, handler Handler, logger log15.Logger) {
+	logger.Info("starting tcp listener", "listen", listen)
+	laddr, err := net.ResolveTCPAddr("tcp", listen)
+	if err != nil {
+		logger.Crit("listen address error", "listen", listen, "err", err)
+		return
+	}
+	listener, err := net.ListenTCP("tcp", laddr)
+	if err != nil {
+		logger.Crit("listen tcp error", "listen", listen, "err", err)
+		return
+	}
+
+	for {
+		conn, err := listener.AcceptTCP()
+		if err != nil {
+			logger.Error("accept error", "listen", listen, "err", err)
+			continue
+		}
+		go handler.HandleConn(conn)
+	}
 }
 
 // the following is from https://gist.github.com/jbardin/821d08cb64c01c84b81a
