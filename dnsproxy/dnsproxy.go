@@ -148,7 +148,7 @@ func makeAnswerMessage(req *dns.Msg, rr []dns.RR) (m *dns.Msg) {
 	return m
 }
 
-func (dnsProxy *DNSProxy) checkVersionQuestion(req *dns.Msg) *dns.Msg {
+func (dnsProxy *DNSProxy) checkVersionQuestion(req *dns.Msg) (answer *dns.Msg) {
 	q := req.Question[0]
 	qKey := makeKey(q.Qclass, q.Qtype, q.Name)
 
