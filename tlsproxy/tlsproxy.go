@@ -129,7 +129,7 @@ func (tlsProxy *TLSProxy) HandleConn(downstream *net.TCPConn) {
 		logger.Error("no server name found")
 		return
 	}
-	target := m.serverName + ":" + tlsProxy.Config.Upstreamport
+	target := m.serverName + ":" + tlsProxy.config.Upstreamport
 
 	logger = logger.New("upstream", target)
 
