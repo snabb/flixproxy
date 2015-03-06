@@ -37,13 +37,14 @@ type HTTPProxy struct {
 }
 
 type Config struct {
-	Id         string
-	Listen     string
-	Acl        string
-	Upstreams  []string
-	Deadline   int64
-	Idle       int64
-	LogRequest bool
+	Id           string
+	Listen       string
+	Acl          string
+	Upstreamport string
+	Upstreams    []string
+	Deadline     int64
+	Idle         int64
+	LogRequest   bool
 }
 
 func New(config Config, access access.Checker, logger log15.Logger) (httpProxy *HTTPProxy) {
@@ -113,7 +114,7 @@ func (httpProxy *HTTPProxy) HandleConn(downstream *net.TCPConn) {
 		return
 	}
 	if strings.Index(hostname, ":") == -1 {
-		hostname = hostname + ":80" // XXX should use our local port number instead?
+		hostname = hostname + ":" + httpProxy.config.Upstreamport
 	}
 	logger = logger.New("upstream", hostname)
 

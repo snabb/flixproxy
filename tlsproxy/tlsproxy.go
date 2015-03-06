@@ -36,12 +36,13 @@ type TLSProxy struct {
 }
 
 type Config struct {
-	Id        string
-	Listen    string
-	Acl       string
-	Upstreams []string
-	Deadline  int64
-	Idle      int64
+	Id           string
+	Listen       string
+	Acl          string
+	Upstreamport string
+	Upstreams    []string
+	Deadline     int64
+	Idle         int64
 }
 
 func New(config Config, access access.Checker, logger log15.Logger) (tlsProxy *TLSProxy) {
@@ -128,7 +129,7 @@ func (tlsProxy *TLSProxy) HandleConn(downstream *net.TCPConn) {
 		logger.Error("no server name found")
 		return
 	}
-	target := m.serverName + ":443" // XXX should use our local port number instead?
+	target := m.serverName + ":" + tlsProxy.Config.Upstreamport
 
 	logger = logger.New("upstream", target)
 

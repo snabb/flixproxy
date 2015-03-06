@@ -106,22 +106,23 @@ type Handler interface {
 }
 
 func ListenAndServe(listen string, handler Handler, logger log15.Logger) {
-	logger.Info("starting tcp listener", "listen", listen)
+	logger = logger.New("listen", listen)
+	logger.Info("starting tcp listener")
 	laddr, err := net.ResolveTCPAddr("tcp", listen)
 	if err != nil {
-		logger.Crit("listen address error", "listen", listen, "err", err)
+		logger.Crit("listen address error", "err", err)
 		return
 	}
 	listener, err := net.ListenTCP("tcp", laddr)
 	if err != nil {
-		logger.Crit("listen tcp error", "listen", listen, "err", err)
+		logger.Crit("listen tcp error", "err", err)
 		return
 	}
 
 	for {
 		conn, err := listener.AcceptTCP()
 		if err != nil {
-			logger.Error("accept error", "listen", listen, "err", err)
+			logger.Error("accept error", "err", err)
 			continue
 		}
 		go handler.HandleConn(conn)
