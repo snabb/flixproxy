@@ -24,11 +24,6 @@ The Git repository is located at: https://github.com/snabb/flixproxy
 Acknowledgements
 ----------------
 
-Some ideas and code may have been stolen from:
-
-- Borislav Nikolov, [github.com/jackdoe/cacher](https://github.com/jackdoe/cacher)
-- Giles Thomas, [github.com/gpjt/stupid-proxy](https://github.com/gpjt/stupid-proxy)
-
 Flixproxy requires the following external Go libraries:
 
 - Miek Gieben, [github.com/miekg/dns](https://github.com/miekg/dns)
