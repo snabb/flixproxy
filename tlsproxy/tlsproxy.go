@@ -64,28 +64,37 @@ func (tlsProxy *TLSProxy) Stop() {
 
 func (tlsProxy *TLSProxy) doProxy() {
 	tlsProxy.logger.Info("starting tcp listener", "listen", tlsProxy.config.Listen)
-	listener, err := net.Listen("tcp", tlsProxy.config.Listen)
+	laddr, err := net.ResolveTCPAddr("tcp", tlsProxy.config.Listen)
+	if err != nil {
+		tlsProxy.logger.Crit("listen address error", "listen", tlsProxy.config.Listen, "err", err)
+		return
+	}
+	listener, err := net.ListenTCP("tcp", laddr)
 	if err != nil {
 		tlsProxy.logger.Crit("listen tcp error", "listen", tlsProxy.config.Listen, "err", err)
 		return
 	}
 
 	for {
-		conn, err := listener.Accept()
+		conn, err := listener.AcceptTCP()
 		if err != nil {
 			tlsProxy.logger.Error("accept error", "listen", tlsProxy.config.Listen, "err", err)
 			continue
 		}
-		if tlsProxy.access.AllowedAddr(conn.RemoteAddr()) {
-			go tlsProxy.handleTLSConnection(conn)
-		} else {
-			tlsProxy.logger.Warn("access denied", "src", conn.RemoteAddr())
-			go conn.Close()
-		}
+		go func() {
+			if tlsProxy.access.AllowedAddr(conn.RemoteAddr()) {
+				tlsProxy.handleTLSConnection(conn)
+			} else {
+				tlsProxy.logger.Warn("access denied", "src", conn.RemoteAddr())
+				conn.Close()
+			}
+		}()
 	}
 }
 
-func (tlsProxy *TLSProxy) handleTLSConnection(downstream net.Conn) {
+func (tlsProxy *TLSProxy) handleTLSConnection(downstream *net.TCPConn) {
+	defer downstream.Close()
+
 	util.SetDeadlineSeconds(downstream, tlsProxy.config.Deadline)
 
 	logger := tlsProxy.logger.New("src", downstream.RemoteAddr())
@@ -98,12 +107,10 @@ func (tlsProxy *TLSProxy) handleTLSConnection(downstream net.Conn) {
 		} else {
 			logger.Info("error reading first byte", "err", err)
 		}
-		downstream.Close()
 		return
 	}
 	if firstByte[0] != 0x16 { // recordTypeHandshake
 		logger.Warn("record type not handshake", "fistbyte", firstByte)
-		downstream.Close()
 		return
 	}
 
@@ -111,12 +118,10 @@ func (tlsProxy *TLSProxy) handleTLSConnection(downstream net.Conn) {
 	_, err = io.ReadFull(downstream, versionBytes)
 	if err != nil {
 		logger.Info("error reading version bytes", "err", err)
-		downstream.Close()
 		return
 	}
 	if versionBytes[0] < 3 || (versionBytes[0] == 3 && versionBytes[1] < 1) {
 		logger.Warn("SSL < 3.1 not supported", "versionbytes", versionBytes)
-		downstream.Close()
 		return
 	}
 
@@ -124,7 +129,6 @@ func (tlsProxy *TLSProxy) handleTLSConnection(downstream net.Conn) {
 	_, err = io.ReadFull(downstream, restLengthBytes)
 	if err != nil {
 		logger.Info("error reading restLength bytes", "err", err)
-		downstream.Close()
 		return
 	}
 	restLength := int(restLengthBytes[0])<<8 + int(restLengthBytes[1])
@@ -133,57 +137,54 @@ func (tlsProxy *TLSProxy) handleTLSConnection(downstream net.Conn) {
 	_, err = io.ReadFull(downstream, rest)
 	if err != nil {
 		logger.Info("error reading rest of bytes", "err", err)
-		downstream.Close()
 		return
 	}
 	if len(rest) == 0 || rest[0] != 1 { // typeClientHello
 		logger.Warn("did not get ClientHello")
-		downstream.Close()
 		return
 	}
 
 	m := new(clientHelloMsg)
 	if !m.unmarshal(rest) {
 		logger.Warn("error parsing ClientHello")
-		downstream.Close()
 		return
 	}
 	if m.serverName == "" {
 		logger.Error("no server name found")
-		downstream.Close()
 		return
 	}
 	target := m.serverName + ":443" // XXX should use our local port number instead?
 
-	logger = logger.New("backend", target)
+	logger = logger.New("upstream", target)
 
 	if util.ManyGlob(tlsProxy.config.Upstreams, target) == false {
-		logger.Error("backend not allowed")
-		downstream.Close()
+		logger.Error("upstream not allowed")
 		return
 	}
-	upstream, err := net.Dial("tcp", target)
+	uaddr, err := net.ResolveTCPAddr("tcp", target)
 	if err != nil {
-		logger.Error("error connecting to backend", "err", err)
-		downstream.Close()
+		logger.Error("upstream address error", "err", err)
 		return
 	}
-	logger.Debug("connected to backend")
+	upstream, err := net.DialTCP("tcp", nil, uaddr)
+	if err != nil {
+		logger.Error("error connecting to upstream", "err", err)
+		return
+	}
+	defer upstream.Close()
+	logger.Debug("connected to upstream")
 
 	util.SetDeadlineSeconds(upstream, tlsProxy.config.Deadline)
 
 	if _, err = upstream.Write(append(append(append(firstByte, versionBytes...), restLengthBytes...), rest...)); err != nil {
-		logger.Error("error writing to backend", "err", err)
-		downstream.Close()
-		upstream.Close()
+		logger.Error("error writing to upstream", "err", err)
 		return
 	}
 	// reset current deadlines
 	util.SetDeadlineSeconds(upstream, 0)
 	util.SetDeadlineSeconds(downstream, 0)
 
-	go util.CopyAndCloseWithIdleTimeout(upstream, downstream, tlsProxy.config.Idle)
-	go util.CopyAndCloseWithIdleTimeout(downstream, upstream, tlsProxy.config.Idle)
+	util.Proxy(upstream, downstream, tlsProxy.config.Idle)
 }
 
 // eof

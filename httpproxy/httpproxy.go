@@ -66,29 +66,37 @@ func (httpProxy *HTTPProxy) Stop() {
 
 func (httpProxy *HTTPProxy) doProxy() {
 	httpProxy.logger.Info("starting tcp listener", "listen", httpProxy.config.Listen)
-	listener, err := net.Listen("tcp", httpProxy.config.Listen)
+	laddr, err := net.ResolveTCPAddr("tcp", httpProxy.config.Listen)
+	if err != nil {
+		httpProxy.logger.Crit("listen address error", "listen", httpProxy.config.Listen, "err", err)
+		return
+	}
+	listener, err := net.ListenTCP("tcp", laddr)
 	if err != nil {
 		httpProxy.logger.Crit("listen tcp error", "listen", httpProxy.config.Listen, "err", err)
 		return
 	}
 
 	for {
-		conn, err := listener.Accept()
+		conn, err := listener.AcceptTCP()
 		if err != nil {
 			httpProxy.logger.Error("accept error", "listen", httpProxy.config.Listen, "err", err)
 			continue
 		}
-		if httpProxy.access.AllowedAddr(conn.RemoteAddr()) {
-			go httpProxy.handleHTTPConnection(conn)
-		} else {
-			httpProxy.logger.Warn("access denied", "src", conn.RemoteAddr())
-
-			go conn.Close()
-		}
+		go func() {
+			if httpProxy.access.AllowedAddr(conn.RemoteAddr()) {
+				httpProxy.handleHTTPConnection(conn)
+			} else {
+				httpProxy.logger.Warn("access denied", "src", conn.RemoteAddr())
+				conn.Close()
+			}
+		}()
 	}
 }
 
-func (httpProxy *HTTPProxy) handleHTTPConnection(downstream net.Conn) {
+func (httpProxy *HTTPProxy) handleHTTPConnection(downstream *net.TCPConn) {
+	defer downstream.Close()
+
 	util.SetDeadlineSeconds(downstream, httpProxy.config.Deadline)
 
 	logger := httpProxy.logger.New("src", downstream.RemoteAddr())
@@ -105,7 +113,6 @@ func (httpProxy *HTTPProxy) handleHTTPConnection(downstream net.Conn) {
 			} else {
 				logger.Error("error reading request", "err", err)
 			}
-			downstream.Close()
 			return
 		}
 		lines = append(lines, line)
@@ -128,37 +135,38 @@ func (httpProxy *HTTPProxy) handleHTTPConnection(downstream net.Conn) {
 	}
 	if hostname == "" {
 		logger.Error("no hostname found", "request", requestLine)
-		downstream.Close()
 		return
 	}
 	if strings.Index(hostname, ":") == -1 {
 		hostname = hostname + ":80" // XXX should use our local port number instead?
 	}
-	logger = logger.New("backend", hostname)
+	logger = logger.New("upstream", hostname)
 
 	if httpProxy.config.LogRequest {
 		logger = logger.New("request", requestLine)
 	}
 	if util.ManyGlob(httpProxy.config.Upstreams, hostname) == false {
-		logger.Error("backend not allowed")
-		downstream.Close()
+		logger.Error("upstream not allowed")
 		return
 	}
-	upstream, err := net.Dial("tcp", hostname)
+	uaddr, err := net.ResolveTCPAddr("tcp", hostname)
 	if err != nil {
-		logger.Error("error connecting to backend", "err", err)
-		downstream.Close()
+		logger.Error("upstream address error", "err", err)
 		return
 	}
-	logger.Debug("connected to backend")
+	upstream, err := net.DialTCP("tcp", nil, uaddr)
+	if err != nil {
+		logger.Error("error connecting to upstream", "err", err)
+		return
+	}
+	defer upstream.Close()
+	logger.Debug("connected to upstream")
 
 	util.SetDeadlineSeconds(upstream, httpProxy.config.Deadline)
 
 	for _, line := range lines {
 		if _, err = upstream.Write([]byte(line)); err != nil {
-			logger.Error("error writing to backend", "err", err)
-			upstream.Close()
-			downstream.Close()
+			logger.Error("error writing to upstream", "err", err)
 			return
 		}
 	}
@@ -168,22 +176,17 @@ func (httpProxy *HTTPProxy) handleHTTPConnection(downstream net.Conn) {
 	buffered, err := util.ReadBufferedBytes(reader)
 	if err != nil {
 		logger.Error("error reading buffered bytes", "err", err)
-		upstream.Close()
-		downstream.Close()
 		return
 	}
 	if _, err = upstream.Write(buffered); err != nil {
-		logger.Error("error writing to backend", "err", err)
-		upstream.Close()
-		downstream.Close()
+		logger.Error("error writing to upstream", "err", err)
 		return
 	}
 	// reset current deadlines
 	util.SetDeadlineSeconds(upstream, 0)
 	util.SetDeadlineSeconds(downstream, 0)
 
-	go util.CopyAndCloseWithIdleTimeout(upstream, downstream, httpProxy.config.Idle)
-	go util.CopyAndCloseWithIdleTimeout(downstream, upstream, httpProxy.config.Idle)
+	util.Proxy(upstream, downstream, httpProxy.config.Idle)
 }
 
 // eof

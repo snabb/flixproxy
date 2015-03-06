@@ -90,16 +90,6 @@ func CopyWithIdleTimeout(dst net.Conn, src net.Conn, timeout int64) (written int
 	return written, err
 }
 
-func CopyAndClose(dst io.WriteCloser, src io.Reader) {
-	io.Copy(dst, src)
-	dst.Close()
-}
-
-func CopyAndCloseWithIdleTimeout(dst net.Conn, src net.Conn, timeout int64) {
-	CopyWithIdleTimeout(dst, src, timeout)
-	dst.Close()
-}
-
 func ReadBufferedBytes(rd *bufio.Reader) (buf []byte, err error) {
 	count := rd.Buffered()
 	if count == 0 {
@@ -108,6 +98,59 @@ func ReadBufferedBytes(rd *bufio.Reader) (buf []byte, err error) {
 	buf = make([]byte, count)
 	_, err = io.ReadFull(rd, buf)
 	return buf, err
+}
+
+// the following is from https://gist.github.com/jbardin/821d08cb64c01c84b81a
+
+func Proxy(srvConn, cliConn *net.TCPConn, timeout int64) {
+	// channels to wait on the close event for each connection
+	serverClosed := make(chan struct{}, 1)
+	clientClosed := make(chan struct{}, 1)
+
+	go broker(srvConn, cliConn, clientClosed, timeout)
+	go broker(cliConn, srvConn, serverClosed, timeout)
+
+	// wait for one half of the proxy to exit, then trigger a shutdown of
+	// the other half by calling CloseRead(). This will break the read
+	// loop in the broker and allow us to fully close the connection
+	// cleanly without a "use of closed network connection" error.
+	var waitFor chan struct{}
+	select {
+	case <-clientClosed:
+		// the client closed first and any more packets from the
+		// server aren't useful, so we can optionally SetLinger(0)
+		// here to recycle the port faster.
+		srvConn.SetLinger(0)
+		srvConn.CloseRead()
+		waitFor = serverClosed
+	case <-serverClosed:
+		cliConn.CloseRead()
+		waitFor = clientClosed
+	}
+
+	// Wait for the other connection to close.
+	// This "waitFor" pattern isn't required, but gives us a way to track
+	// the connection and ensure all copies terminate correctly; we can
+	// trigger stats on entry and deferred exit of this function.
+	<-waitFor
+}
+
+// This does the actual data transfer.
+// The broker only closes the Read side.
+func broker(dst, src net.Conn, srcClosed chan struct{}, timeout int64) {
+	// We can handle errors in a finer-grained manner by inlining
+	// io.Copy (it's simple, and we drop the ReaderFrom or WriterTo
+	// checks for net.Conn->net.Conn transfers, which aren't needed).
+	// This would also let us adjust buffersize.
+	_, err := CopyWithIdleTimeout(dst, src, timeout)
+
+	if err != nil {
+		// log.Printf("Copy error: %s", err)
+	}
+	if err := src.Close(); err != nil {
+		// log.Printf("Close error: %s", err)
+	}
+	srcClosed <- struct{}{}
 }
 
 // eof
