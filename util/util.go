@@ -39,25 +39,29 @@ func ManyGlob(globs []string, str string) (matched bool) {
 	return false
 }
 
+func secondsDurationToAbsolute(seconds int64) (absolute time.Time) {
+	return time.Now().Add(time.Duration(seconds) * time.Second)
+}
+
 func SetDeadlineSeconds(conn net.Conn, seconds int64) (err error) {
 	if seconds == 0 {
 		return conn.SetDeadline(time.Time{})
 	}
-	return conn.SetDeadline(time.Now().Add(time.Duration(seconds) * time.Second))
+	return conn.SetDeadline(secondsDurationToAbsolute(seconds))
 }
 
 func SetReadDeadlineSeconds(conn net.Conn, seconds int64) (err error) {
 	if seconds == 0 {
 		return conn.SetReadDeadline(time.Time{})
 	}
-	return conn.SetReadDeadline(time.Now().Add(time.Duration(seconds) * time.Second))
+	return conn.SetReadDeadline(secondsDurationToAbsolute(seconds))
 }
 
 func SetWriteDeadlineSeconds(conn net.Conn, seconds int64) (err error) {
 	if seconds == 0 {
 		return conn.SetWriteDeadline(time.Time{})
 	}
-	return conn.SetWriteDeadline(time.Now().Add(time.Duration(seconds) * time.Second))
+	return conn.SetWriteDeadline(secondsDurationToAbsolute(seconds))
 }
 
 func CopyWithIdleTimeout(dst net.Conn, src net.Conn, timeout int64) (written int64, err error) {
