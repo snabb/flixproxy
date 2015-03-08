@@ -27,6 +27,7 @@ import (
 	"github.com/ryanuber/go-glob"
 	"github.com/snabb/flixproxy/access"
 	"gopkg.in/inconshreveable/log15.v2"
+	"math/rand"
 	"strconv"
 	"strings"
 )
@@ -153,6 +154,15 @@ func (dnsProxy *DNSProxy) checkVersionQuestion(req *dns.Msg) (answer *dns.Msg) {
 	return nil
 }
 
+func shuffleRRs(rr []dns.RR) (shuffled []dns.RR) {
+	N := len(rr)
+	for i := 0; i < N; i++ {
+		r := i + rand.Intn(N-i)
+		rr[r], rr[i] = rr[i], rr[r]
+	}
+	return rr
+}
+
 func selectAnswers(q dns.Question, rr []dns.RR) (answer []dns.RR) {
 	for _, r := range rr {
 		if (q.Qclass == r.Header().Class &&
@@ -165,7 +175,11 @@ func selectAnswers(q dns.Question, rr []dns.RR) (answer []dns.RR) {
 			answer = append(answer, a)
 		}
 	}
-	return answer
+	if len(answer) > 1 {
+		return shuffleRRs(answer)
+	} else {
+		return answer
+	}
 }
 
 func (dnsProxy *DNSProxy) getQuestionAnswer(q dns.Question) (answer []dns.RR) {
