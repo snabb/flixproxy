@@ -50,22 +50,6 @@ type rrSlice struct {
 	wildRrs map[string][]dns.RR
 }
 
-func makeQuestionString(rrclass uint16, rrtype uint16, name string) (combined string) {
-	c, ok := dns.ClassToString[rrclass]
-	if !ok {
-		c = strconv.Itoa(int(rrclass))
-	}
-	t, ok := dns.TypeToString[rrtype]
-	if !ok {
-		t = strconv.Itoa(int(rrtype))
-	}
-	return c + "·" + t + "·" + name
-}
-
-func makeKey(rrclass uint16, rrtype uint16, name string) (key string) {
-	return makeQuestionString(rrclass, rrtype, strings.ToLower(name))
-}
-
 func (spoof *rrSlice) unmarshalAny(spoofString string) (err error) {
 	spoof.rrs = make(map[string][]dns.RR)
 	spoof.wildRrs = make(map[string][]dns.RR)
@@ -84,7 +68,7 @@ func (spoof *rrSlice) unmarshalAny(spoofString string) (err error) {
 		if rr, err = dns.NewRR(line); err != nil {
 			return err
 		}
-		key := makeKey(rr.Header().Class, rr.Header().Rrtype, strings.Fields(line)[0])
+		key := strings.ToLower(rr.Header().Name)
 
 		if strings.Contains(key, "*") {
 			spoof.wildRrs[key] = append(spoof.wildRrs[key], rr)
@@ -150,10 +134,10 @@ func makeAnswerMessage(req *dns.Msg, rr []dns.RR) (m *dns.Msg) {
 
 func (dnsProxy *DNSProxy) checkVersionQuestion(req *dns.Msg) (answer *dns.Msg) {
 	q := req.Question[0]
-	qKey := makeKey(q.Qclass, q.Qtype, q.Name)
+	qname := strings.ToLower(q.Name)
 
-	if qKey == "CH\000TXT\000version.bind." ||
-		qKey == "CH\000TXT\000version.server." {
+	if q.Qclass == dns.ClassCHAOS && q.Qtype == dns.TypeTXT &&
+		(qname == "version.bind." || qname == "version.server.") {
 
 		rr := dns.RR(&dns.TXT{
 			Hdr: dns.RR_Header{
@@ -169,25 +153,30 @@ func (dnsProxy *DNSProxy) checkVersionQuestion(req *dns.Msg) (answer *dns.Msg) {
 	return nil
 }
 
+func selectAnswers(q dns.Question, rr []dns.RR) (answer []dns.RR) {
+	for _, r := range rr {
+		if (q.Qclass == r.Header().Class &&
+			q.Qtype == r.Header().Rrtype) ||
+			(q.Qclass == r.Header().Class &&
+				q.Qtype == dns.TypeANY) {
+
+			a := dns.Copy(r)
+			a.Header().Name = q.Name
+			answer = append(answer, a)
+		}
+	}
+	return answer
+}
+
 func (dnsProxy *DNSProxy) getQuestionAnswer(q dns.Question) (answer []dns.RR) {
-	qKey := makeKey(q.Qclass, q.Qtype, q.Name)
+	qKey := strings.ToLower(q.Name)
 
 	if rr, ok := dnsProxy.config.Spoof.rrs[qKey]; ok {
-		answer = make([]dns.RR, len(rr))
-		for i := range rr {
-			answer[i] = dns.Copy(rr[i])
-			answer[i].Header().Name = q.Name
-		}
-		return answer
+		return selectAnswers(q, rr)
 	}
 	for key, rr := range dnsProxy.config.Spoof.wildRrs {
 		if glob.Glob(key, qKey) {
-			answer = make([]dns.RR, len(rr))
-			for i := range rr {
-				answer[i] = dns.Copy(rr[i])
-				answer[i].Header().Name = q.Name
-			}
-			return answer
+			return selectAnswers(q, rr)
 		}
 	}
 	return nil
@@ -216,7 +205,15 @@ func (dnsProxy *DNSProxy) getMessageReply(req *dns.Msg) *dns.Msg {
 }
 
 func questionString(q dns.Question) string {
-	return makeQuestionString(q.Qclass, q.Qtype, q.Name)
+	c, ok := dns.ClassToString[q.Qclass]
+	if !ok {
+		c = strconv.Itoa(int(q.Qclass))
+	}
+	t, ok := dns.TypeToString[q.Qtype]
+	if !ok {
+		t = strconv.Itoa(int(q.Qtype))
+	}
+	return c + "·" + t + "·" + q.Name
 }
 
 func (dnsProxy *DNSProxy) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
