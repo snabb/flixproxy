@@ -73,6 +73,10 @@ func main() {
 		pflag.Usage()
 		os.Exit(2)
 	}
+	if *version {
+		printVersion()
+		os.Exit(0)
+	}
 
 	logger := log15.New()
 
@@ -84,10 +88,6 @@ func main() {
 	if *testConfig {
 		fmt.Println("Configuration file parsed successfully.")
 		fmt.Printf("%+v\n", config)
-		os.Exit(0)
-	}
-	if *version {
-		printVersion()
 		os.Exit(0)
 	}
 	setupLogging(logger, config.Logging)
