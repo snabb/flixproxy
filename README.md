@@ -11,9 +11,10 @@ Netflix connections:
  - TLS (HTTPS) proxy which uses the Server Name Indication (SNI) extension
    in the ClientHello TLS packet to determine the backend.
 
-You can run this software on a chep VPS in US and get the US version of
-Neflix by specifying the Flixproxy VPS IP address as the DNS server address
-in your Smart TV, computer, router, DHCP or somewhere else.
+You may be able to use this software to circumvent geoblocking:
+1. Setup this proxy in a virtual machine in the desired location.
+2. Specify the proxy IP address as the DNS server address in your Smart TV, computer,
+router, DHCP or somewhere else.
 
 This software does not work with devices which do not support Server Name
 Indication (SNI) extension in their SSL/TLS client implementation.
