@@ -23,6 +23,7 @@ package main
 
 import (
 	"gopkg.in/inconshreveable/log15.v2"
+	"log/syslog"
 	"os"
 )
 
@@ -31,6 +32,8 @@ type LoggingTarget struct {
 	Format      string // logfmt, json or terminal
 	Level       string // crit, error, warn, info or debug
 }
+
+var syslogPrio = syslog.LOG_INFO | syslog.LOG_USER
 
 func setupLogging(logger log15.Logger, targets []LoggingTarget) {
 	var handlers []log15.Handler
@@ -62,7 +65,7 @@ func setupLogging(logger log15.Logger, targets []LoggingTarget) {
 		case "stderr":
 			handler = log15.StreamHandler(os.Stderr, format)
 		case "syslog":
-			if handler, err = log15.SyslogHandler("flixproxy", format); err != nil {
+			if handler, err = log15.SyslogHandler(syslogPrio, "flixproxy", format); err != nil {
 				logger.Error("error opening syslog", "err", err)
 				continue
 			}
