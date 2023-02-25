@@ -3,7 +3,9 @@ Flixproxy
 
 **NOTE: This software is probably no longer sufficient for its original
 purpose. However I am keeping the repository around as this might be still
-useful for proxying connections to some other service or as a reference.**
+useful for proxying connections to some other service or as a reference.
+I do not intend to maintain it any more. Feel free to fork it if you want
+to update it.**
 
 Flixproxy implements DNS, HTTP and HTTPS/TLS proxies needed for proxying
 Netflix connections:
