@@ -23,11 +23,12 @@ package util
 
 import (
 	"bufio"
-	"github.com/ryanuber/go-glob"
-	"gopkg.in/inconshreveable/log15.v2"
 	"io"
 	"net"
 	"time"
+
+	"github.com/ryanuber/go-glob"
+	"gopkg.in/inconshreveable/log15.v2"
 )
 
 func ManyGlob(globs []string, str string) (matched bool) {

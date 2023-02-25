@@ -23,11 +23,12 @@ package httpproxy
 
 import (
 	"bufio"
+	"net"
+	"strings"
+
 	"github.com/snabb/flixproxy/access"
 	"github.com/snabb/flixproxy/util"
 	"gopkg.in/inconshreveable/log15.v2"
-	"net"
-	"strings"
 )
 
 type HTTPProxy struct {
