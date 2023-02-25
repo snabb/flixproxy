@@ -22,11 +22,12 @@
 package tlsproxy
 
 import (
+	"io"
+	"net"
+
 	"github.com/snabb/flixproxy/access"
 	"github.com/snabb/flixproxy/util"
 	"gopkg.in/inconshreveable/log15.v2"
-	"io"
-	"net"
 )
 
 type TLSProxy struct {

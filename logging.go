@@ -22,9 +22,10 @@
 package main
 
 import (
-	"gopkg.in/inconshreveable/log15.v2"
 	"log/syslog"
 	"os"
+
+	"gopkg.in/inconshreveable/log15.v2"
 )
 
 type LoggingTarget struct {

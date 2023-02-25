@@ -23,13 +23,14 @@ package dnsproxy
 
 import (
 	"errors"
+	"math/rand"
+	"strconv"
+	"strings"
+
 	"github.com/miekg/dns"
 	"github.com/ryanuber/go-glob"
 	"github.com/snabb/flixproxy/access"
 	"gopkg.in/inconshreveable/log15.v2"
-	"math/rand"
-	"strconv"
-	"strings"
 )
 
 type DNSProxy struct {
