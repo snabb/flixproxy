@@ -1,6 +1,10 @@
 Flixproxy
 =========
 
+**NOTE: This software is probably no longer sufficient for its original
+purpose. However I am keeping the repository around as this might be still
+useful for proxying connections to some other service or as a reference.**
+
 Flixproxy implements DNS, HTTP and HTTPS/TLS proxies needed for proxying
 Netflix connections:
 
@@ -12,7 +16,10 @@ Netflix connections:
    in the ClientHello TLS packet to determine the backend.
 
 You may be able to use this software to circumvent geoblocking:
-1. Setup this proxy in a virtual machine in the desired location.
+
+1. Setup this proxy in a virtual machine in the desired location. You will
+to adjust the configuration to suit your needs.
+
 2. Specify the proxy IP address as the DNS server address in your Smart TV, computer,
 router, DHCP or somewhere else.
 
