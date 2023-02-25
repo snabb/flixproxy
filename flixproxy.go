@@ -111,10 +111,10 @@ func main() {
 			tlsproxy.New(proxyConfig, config.Acl.GetAcl(proxyConfig.Acl), logger.New("s", "TLS")))
 	}
 
-	sigCexit := make(chan os.Signal)
+	sigCexit := make(chan os.Signal, 1)
 	signal.Notify(sigCexit, syscall.SIGTERM, syscall.SIGINT) // terminate gracefully
 
-	sigChup := make(chan os.Signal)
+	sigChup := make(chan os.Signal, 1)
 	signal.Notify(sigChup, syscall.SIGHUP) // reopen logs
 
 	logger.Info("entering main loop")
@@ -145,7 +145,7 @@ func getGoEnvironment() (environment string) {
 func printVersion() {
 	fmt.Println("Flixproxy", VERSION, "- DNS, HTTP and TLS proxy")
 	fmt.Println("Built with", getGoEnvironment())
-	fmt.Println(`
+	fmt.Print(`
 Copyright © 2015 Janne Snabb <snabb AT epipe.com>
 
 Flixproxy is free software: you can redistribute it and/or modify
@@ -160,6 +160,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with Flixproxy. If not, see <http://www.gnu.org/licenses/>.
+
 `)
 }
 
